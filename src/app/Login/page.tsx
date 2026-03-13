@@ -39,7 +39,7 @@ export default function Login() {
                   <div className="col-md-9 col-lg-6 col-xl-5">
                     <Image
                       src="/login.png"
-                      alt="Ảnh bị ẩn do mạng"
+                      alt="Tài liệu toán.vn"
                       className='img-fluid'
                       width={500}
                       height={300}

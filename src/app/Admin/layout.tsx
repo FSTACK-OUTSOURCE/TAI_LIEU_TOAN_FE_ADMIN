@@ -1,9 +1,9 @@
 'use client'
 import { Inter } from "next/font/google";
 import Image from "next/image";
-import Styles from "../page.module.css";
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation';
+import Styles from "../page.module.css";
 const inter = Inter({ subsets: ["latin"] });
 
 // export const metadata: Metadata = {
@@ -33,7 +33,7 @@ export default function RootLayout({
                   <svg className="bi me-2" width="40" height="32"></svg>
                   <Image
                     src="/logopage.png"
-                    alt="Ảnh bị ẩn do mạng"
+                    alt="Tài liệu toán.vn"
                     className='img-fluid'
                     width={300}
                     height={300}
