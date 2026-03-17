@@ -3,9 +3,9 @@ import Cookies from 'js-cookie';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import styles from "../page.module.css";
 import Image from "next/image";
-import FontAwesomeIcon from "../Component/fontAwesome.jsx";
 import { useEffect, useRef } from 'react';
 import { getTokenByUser } from '../Api/apiUser';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 
 
