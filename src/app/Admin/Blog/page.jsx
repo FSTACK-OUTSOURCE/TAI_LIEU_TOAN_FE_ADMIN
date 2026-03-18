@@ -18,7 +18,7 @@ const getUserIdFromToken = () => {
     try {
         const token = getCookie('token');
         if (!token) return null;
-        return JSON.parse(atob(token.split('.')[1]))?.nameid ?? null;
+        return JSON.parse(atob(token.split('.')[1]))?.UserId ?? null;
     } catch { return null; }
 };
 
@@ -34,7 +34,7 @@ export default function BlogPage() {
     const [selectedRows, setSelectedRows] = useState([]);
 
     useEffect(() => {
-        setIsAdmin(getCookie('is_root') === '1');
+        setIsAdmin(localStorage.getItem('isAdmin') === '1');
         setCurrentUserId(getUserIdFromToken());
         fetchData();
     }, []);
@@ -98,7 +98,9 @@ export default function BlogPage() {
         fetchData();
     };
 
-    const canDelete = (record) => isAdmin || record.CREATE_BY === currentUserId;
+    const isOwner = (record) => record.CREATE_BY === currentUserId;
+    const canEdit = (record) => isAdmin || isOwner(record);
+    const canDelete = (record) => isAdmin || isOwner(record);
 
     const columns = [
         { title: 'STT', dataIndex: 'STT', width: 60 },
@@ -120,11 +122,15 @@ export default function BlogPage() {
         },
         {
             title: 'Chức năng',
-            width: 160,
+            width: 180,
             render: (_, record) => (
                 <Radio.Group>
-                    {isAdmin && (
+                    {canEdit(record) ? (
                         <Radio.Button onClick={() => openEdit(record)}>Sửa</Radio.Button>
+                    ) : (
+                        <Tooltip title="Bạn chỉ có thể sửa bài viết của mình">
+                            <Radio.Button disabled>Sửa</Radio.Button>
+                        </Tooltip>
                     )}
                     {canDelete(record) ? (
                         <Radio.Button danger onClick={() => handleDelete(record)}>Xóa</Radio.Button>

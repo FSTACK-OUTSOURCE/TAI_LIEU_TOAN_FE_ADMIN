@@ -1,7 +1,7 @@
 'use client'
 import 'react-quill/dist/quill.snow.css';
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import axios from 'axios';
 
 const QuillEditor = dynamic(() => import('react-quill'), { ssr: false });
@@ -10,6 +10,8 @@ const getCookie = (name) =>
     document.cookie.split('; ').find(r => r.startsWith(`${name}=`))?.split('=')[1] ?? null;
 
 export const ReactQuill = ({ onChange, ...props }) => {
+    const quillRef = useRef(null);
+
     const modules = useMemo(() => ({
         toolbar: {
             container: [
@@ -21,10 +23,10 @@ export const ReactQuill = ({ onChange, ...props }) => {
                 ['clean'],
             ],
             handlers: {
-                image: function () {
-                    // `this.quill` is the Quill editor instance — works regardless of how ref is set up
-                    const quill = this.quill;
-                    const savedRange = quill.getSelection();
+                image: () => {
+                    // arrow fn captures quillRef from closure (avoids `this` binding issue)
+                    const quill = quillRef.current?.getEditor?.() ?? quillRef.current?.editor;
+                    const savedRange = quill?.getSelection?.();
 
                     const input = document.createElement('input');
                     input.setAttribute('type', 'file');
@@ -52,7 +54,8 @@ export const ReactQuill = ({ onChange, ...props }) => {
                             );
 
                             const filePath = res.data?.FilePath;
-                            if (filePath) {
+                            if (filePath && quill) {
+                                // store as relative path so it works on both admin and client via rewrite
                                 const url = filePath.replace(/\\/g, '/'); // /uploads/abc.png
                                 const index = savedRange?.index ?? quill.getLength() - 1;
                                 quill.insertEmbed(index, 'image', url);
@@ -69,6 +72,7 @@ export const ReactQuill = ({ onChange, ...props }) => {
 
     return (
         <QuillEditor
+            ref={quillRef}
             theme="snow"
             modules={modules}
             onChange={onChange}
