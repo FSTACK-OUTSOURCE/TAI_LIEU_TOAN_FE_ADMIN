@@ -71,6 +71,12 @@ export default function RootLayout({
                         </Link>
                       </li>
                       <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
+                        <Link href="/Admin/Notification" className={`nav-link ${Styles.fontSideBar}`}>
+                          <svg className="bi me-2" width="16" height="16"></svg>
+                          Đăng ký mới
+                        </Link>
+                      </li>
+                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
                         <Link href="/Admin/Topic" className={`nav-link ${Styles.fontSideBar}`}>
                           <svg className="bi me-2" width="16" height="16"></svg>
                           Chủ đề

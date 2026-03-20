@@ -22,3 +22,7 @@ export const postUserInfo = async (queryParams?: Record<string, any>): Promise<a
 export const deleteUserById = async (topicId: string): Promise<any> => {
   return await callRestApi({ method: 'DELETE', endpoint: `/api/user/delete/${topicId}`, message: `Xóa thành công` })
 };
+
+export const updateUserRole = async (queryParams?: Record<string, any>): Promise<any> => {
+  return await callRestApi({ method: 'POST', endpoint: '/api/user/update-role', data: queryParams, message: 'Cập nhật quyền thành công' })
+};
