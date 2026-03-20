@@ -5,6 +5,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Table, Button, Radio, Tag, Tabs, Tooltip, Modal, Input } from 'antd';
 import { PlusOutlined, BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { getBlog, saveBlog, deleteBlogById } from '@/app/Api/apiBlog';
+import { uploadFile } from '@/app/Api/apiFile';
 import Swal from 'sweetalert2';
 import { FormatDateTime } from '@/app/constans';
 import { ReactQuill } from '@/app/Component/TextEditor';
@@ -22,7 +23,7 @@ const getUserIdFromToken = () => {
     } catch { return null; }
 };
 
-const emptyForm = { BLOG_ID: null, TITLE: '', DESCRIPTION: '', CONTENT: '' };
+const emptyForm = { BLOG_ID: null, TITLE: '', DESCRIPTION: '', CONTENT: '', THUMBNAIL: '' };
 
 export default function BlogPage() {
     const [data, setData] = useState([]);
@@ -52,8 +53,21 @@ export default function BlogPage() {
     };
 
     const openEdit = (record) => {
-        setForm({ BLOG_ID: record.BLOG_ID, TITLE: record.TITLE || '', DESCRIPTION: record.DESCRIPTION || '', CONTENT: record.CONTENT || '' });
+        setForm({ BLOG_ID: record.BLOG_ID, TITLE: record.TITLE || '', DESCRIPTION: record.DESCRIPTION || '', CONTENT: record.CONTENT || '', THUMBNAIL: record.THUMBNAIL || '' });
         setShowModal(true);
+    };
+
+    const handleThumbnailUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const res = await uploadFile(file);
+            if (res?.FilePath) {
+                setForm(prev => ({ ...prev, THUMBNAIL: `${process.env.NEXT_PUBLIC_API_URL}${res.FilePath.replace(/\\/g, '/')}` }));
+            }
+        } catch {
+            Swal.fire('Lỗi', 'Không thể tải ảnh lên', 'error');
+        }
     };
 
     const handleSave = async () => {
@@ -235,6 +249,13 @@ export default function BlogPage() {
                         value={form.TITLE}
                         onChange={e => setForm(prev => ({ ...prev, TITLE: e.target.value }))}
                     />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Thumbnail</label>
+                    <input type="file" accept="image/*" className="form-control" onChange={handleThumbnailUpload} />
+                    {form.THUMBNAIL && (
+                        <img src={form.THUMBNAIL} alt="thumbnail preview" style={{ marginTop: 8, maxHeight: 120, borderRadius: 6, objectFit: 'cover' }} />
+                    )}
                 </div>
                 <div className="mb-3">
                     <label className="form-label fw-semibold">Mô tả ngắn</label>
