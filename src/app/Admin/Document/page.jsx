@@ -1,16 +1,17 @@
 "use client"
 import 'bootstrap/dist/css/bootstrap.min.css';
 import styles from "../../page.module.css";
+import dayjs from 'dayjs';
 import { useState, useEffect } from "react";
 import React from "react";
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Radio, Table, Tabs, Modal, Checkbox, Anchor } from 'antd';
+import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { Button, Radio, Table, Checkbox, Anchor, Input, Select, DatePicker } from 'antd';
 import DetailDocument from '../FormDetail/DetailDocument/page';
 import { deleteDocumentById, getDocumentInfo, getParentDocuments, quickCreateFolderDocument } from '@/app/Api/apiDocument';
+import { getTopicInfo } from '@/app/Api/apiTopic';
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Breadcrumb } from "antd";
 import Swal from 'sweetalert2';
-import { Filter } from '@/app/Component/Filter'
 import { FormatDateTime, guidEmpty } from '@/app/constans'
 
 
@@ -24,6 +25,8 @@ export default function Document() {
     const [selectedRows, setSelectedRows] = useState([]);
     const [showPopup, setShowPopup] = useState(false);
     const [documentId, setDocumentId] = useState(null);
+    const [topics, setTopics] = useState([]);
+    const [filter, setFilter] = useState({ NAME: '', TOPIC_IDS: '', CREATED_DATE_FROM: null, CREATED_DATE_TO: null });
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 20,  // Number of items per page
@@ -222,8 +225,6 @@ export default function Document() {
         var queryParams = { Columns: 'CREATED_USER', ...filter, ...props };
         const response = await getDocumentInfo(queryParams);
 
-        var parentDocuments = await getParentDocuments({ DOCUMENT_IDs: PARENT_DOCUMENT_ID, Columns: '*', loading: false })
-        // console.log(parentDocuments)
         if (response.success) {
 
             if (response.Items && response.Items.length > 0) {
@@ -240,22 +241,26 @@ export default function Document() {
                 total: response.TotalCount
             });
 
-
-            breadData.length = 0;
-            breadData.push({
-                title: <Button type="text" className='fw-bold' block onClick={() => handleDoubleClick(guidEmpty)}>
-                    Root
-                </Button>, documentId: guidEmpty
-            })
-            parentDocuments.Data.map((x) => {
+            if (PARENT_DOCUMENT_ID !== undefined) {
+                var parentDocuments = await getParentDocuments({ DOCUMENT_IDs: PARENT_DOCUMENT_ID, Columns: '*', loading: false })
+                breadData.length = 0;
                 breadData.push({
-                    title: <Button type="text" className={`${styles.titleColor} fw-bold`} block onClick={() => {
-                        router.push(`/Admin/Document?parentDocumentId=${x.DOCUMENT_ID}`, { scroll: false })
-                    }}>
-                        {x.NAME}
-                    </Button>, documentId: x.DOCUMENT_ID
+                    title: <Button type="text" className='fw-bold' block onClick={() => handleDoubleClick(guidEmpty)}>
+                        Root
+                    </Button>, documentId: guidEmpty
                 })
-            })
+                if (parentDocuments.Data) {
+                    parentDocuments.Data.map((x) => {
+                        breadData.push({
+                            title: <Button type="text" className={`${styles.titleColor} fw-bold`} block onClick={() => {
+                                router.push(`/Admin/Document?parentDocumentId=${x.DOCUMENT_ID}`, { scroll: false })
+                            }}>
+                                {x.NAME}
+                            </Button>, documentId: x.DOCUMENT_ID
+                        })
+                    })
+                }
+            }
         }
     };
 
@@ -273,26 +278,91 @@ export default function Document() {
 
     useEffect(() => {
         getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: 1, PageSize: pagination.pageSize });
+        getTopicInfo(undefined, false).then(res => {
+            if (res.success) setTopics(res.Items || []);
+        });
     }, [parentDocumentId, key]);
+
+    const applyFilter = () => {
+        const hasActiveFilter = filter.NAME?.trim() || filter.TOPIC_IDS || filter.CREATED_DATE_FROM || filter.CREATED_DATE_TO;
+        // Khi có filter thì tìm toàn bộ, không giới hạn theo thư mục hiện tại
+        const activeFilter = {
+            ...(filter.NAME?.trim() ? { NAME: filter.NAME.trim() } : {}),
+            ...(filter.TOPIC_IDS ? { TOPIC_IDS: filter.TOPIC_IDS } : {}),
+            ...(filter.CREATED_DATE_FROM ? { CREATED_DATE_FROM: filter.CREATED_DATE_FROM } : {}),
+            ...(filter.CREATED_DATE_TO ? { CREATED_DATE_TO: filter.CREATED_DATE_TO } : {}),
+        };
+        getData({
+            ...(hasActiveFilter ? {} : { PARENT_DOCUMENT_ID: parentDocumentId }),
+            IDENTITY_KEY: key,
+            CurrentPage: 1,
+            PageSize: pagination.pageSize,
+            ...activeFilter,
+        });
+    };
+
+    const resetFilter = () => {
+        const empty = { NAME: '', TOPIC_IDS: '', CREATED_DATE_FROM: null, CREATED_DATE_TO: null };
+        setFilter(empty);
+        getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: 1, PageSize: pagination.pageSize });
+    };
 
     return (
         <section>
-            <div className={`col-md-12 pt-5 ${styles.contentRight}`}>
-                <Filter columns={columns} onFilter={async (filter) => {
-                    await getData({ CurrentPage: 1, PageSize: 10, ...filter })
-                }} ></Filter>
-                <Button className={`${styles.buttonFeature}`} onClick={() => {
-                    setShowPopup(true)
-                    setDocumentId(null)
-                }} type="primary" shape="round" icon={<PlusOutlined />} size={size}>
-                    Thêm mới
-                </Button>
-                <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<DeleteOutlined />} size={size} onClick={showDeleteArray}>
-                    Xoá
-                </Button>
-                <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<PlusOutlined />} size={size} onClick={quickCreate}>
-                    Tạo nhanh thư mục
-                </Button>
+            <div className={`col-md-12 pt-4 ${styles.contentRight}`}>
+                {/* Filter bar */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Input
+                        placeholder="Tìm tên tài liệu..."
+                        value={filter.NAME}
+                        allowClear
+                        style={{ width: 240 }}
+                        onChange={e => setFilter(f => ({ ...f, NAME: e.target.value }))}
+                        onPressEnter={applyFilter}
+                    />
+                    <DatePicker.RangePicker
+                        placeholder={['Từ ngày', 'Đến ngày']}
+                        format="DD/MM/YYYY"
+                        value={[
+                            filter.CREATED_DATE_FROM ? dayjs(filter.CREATED_DATE_FROM) : null,
+                            filter.CREATED_DATE_TO ? dayjs(filter.CREATED_DATE_TO) : null,
+                        ]}
+                        onChange={(dates) => setFilter(f => ({
+                            ...f,
+                            CREATED_DATE_FROM: dates?.[0]?.format('YYYY-MM-DD') ?? null,
+                            CREATED_DATE_TO: dates?.[1]?.format('YYYY-MM-DD') ?? null,
+                        }))}
+                    />
+                    <Select
+                        placeholder="Chọn chủ đề..."
+                        allowClear
+                        style={{ width: 200 }}
+                        value={filter.TOPIC_IDS || undefined}
+                        options={topics.map(t => ({ label: t.NAME, value: t.TOPIC_ID }))}
+                        onChange={val => setFilter(f => ({ ...f, TOPIC_IDS: val ?? '' }))}
+                    />
+                    <Button type="primary" shape="round" icon={<SearchOutlined />} onClick={applyFilter}>
+                        Tìm kiếm
+                    </Button>
+                    <Button shape="round" onClick={resetFilter}>
+                        Xóa lọc
+                    </Button>
+                </div>
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button className={`${styles.buttonFeature}`} onClick={() => {
+                        setShowPopup(true)
+                        setDocumentId(null)
+                    }} type="primary" shape="round" icon={<PlusOutlined />} size={size}>
+                        Thêm mới
+                    </Button>
+                    <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<DeleteOutlined />} size={size} onClick={showDeleteArray}>
+                        Xoá
+                    </Button>
+                    <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<PlusOutlined />} size={size} onClick={quickCreate}>
+                        Tạo nhanh thư mục
+                    </Button>
+                </div>
             </div>
             {showPopup && <DetailDocument onClose={() => { togglePopup(parentDocumentId) }} documentId={documentId} parentDocumentId={parentDocumentId} />}
             <div className={`col-md-12 ${styles.contentRight}`}>
