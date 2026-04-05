@@ -2,8 +2,8 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import styles from '../../page.module.css';
 import { useEffect, useState, useMemo } from 'react';
-import { Table, Button, Radio, Tag, Tabs, Tooltip, Modal, Input } from 'antd';
-import { PlusOutlined, BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { Table, Button, Radio, Tag, Tabs, Tooltip, Modal, Input, Spin } from 'antd';
+import { PlusOutlined, BarChartOutlined, UnorderedListOutlined, ThunderboltOutlined, RobotOutlined } from '@ant-design/icons';
 import { getBlog, saveBlog, deleteBlogById } from '@/app/Api/apiBlog';
 import { uploadFile } from '@/app/Api/apiFile';
 import Swal from 'sweetalert2';
@@ -33,6 +33,9 @@ export default function BlogPage() {
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState(emptyForm);
     const [selectedRows, setSelectedRows] = useState([]);
+    
+    const [showAutoModal, setShowAutoModal] = useState(false);
+    const [autoForm, setAutoForm] = useState({ driver_url: '', thumbnail: '' });
 
     useEffect(() => {
         setIsAdmin(localStorage.getItem('isAdmin') === '1');
@@ -50,6 +53,68 @@ export default function BlogPage() {
     const openCreate = () => {
         setForm(emptyForm);
         setShowModal(true);
+    };
+
+    const openAutoAdd = () => {
+        setAutoForm({ driver_url: '', thumbnail: '' });
+        setShowAutoModal(true);
+    };
+
+    const handleAutoThumbnailUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            Swal.fire('Lỗi', 'Vui lòng chọn file định dạng ảnh', 'warning');
+            e.target.value = '';
+            return;
+        }
+
+        try {
+            const res = await uploadFile(file);
+            if (res?.FilePath) {
+                setAutoForm(prev => ({ ...prev, thumbnail: `${process.env.NEXT_PUBLIC_API_URL}${res.FilePath.replace(/\\/g, '/')}` }));
+            }
+        } catch {
+            Swal.fire('Lỗi', 'Không thể tải ảnh lên', 'error');
+        }
+    };
+
+    const handleAutoSave = async () => {
+        if (!autoForm.driver_url?.trim()) {
+            Swal.fire('Lỗi', 'Vui lòng nhập Link file (driver_url)', 'warning');
+            return;
+        }
+        if (!autoForm.thumbnail?.trim()) {
+            Swal.fire('Lỗi', 'Vui lòng upload Thumbnail', 'warning');
+            return;
+        }
+        
+        try {
+            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false });
+            Swal.showLoading();
+
+            const response = await fetch(process.env.NEXT_PUBLIC_N8N_API, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    driver_url: autoForm.driver_url,
+                    thumbnail: autoForm.thumbnail
+                })
+            });
+
+            if (response.ok) {
+                Swal.fire('Thành công', 'Đã thêm bài viết tự động thành công', 'success');
+                setShowAutoModal(false);
+                fetchData();
+            } else {
+                Swal.fire('Lỗi', 'Tạo bài viết tự động thất bại', 'error');
+            }
+        } catch (error) {
+            Swal.fire('Lỗi', 'Không thể kết nối đến webhook', 'error');
+        }
     };
 
     const openEdit = (record) => {
@@ -189,6 +254,9 @@ export default function BlogPage() {
                         <Button type="primary" shape="round" icon={<PlusOutlined />} size="large" onClick={openCreate}>
                             Thêm bài viết
                         </Button>
+                        <Button type="dashed" shape="round" icon={<RobotOutlined />} size="large" onClick={openAutoAdd}>
+                            Thêm bài viết tự động
+                        </Button>
                         {isAdmin && selectedRows.length > 0 && (
                             <Button danger shape="round" size="large" onClick={handleDeleteSelected}>
                                 Xóa {selectedRows.length} bài đã chọn
@@ -273,6 +341,32 @@ export default function BlogPage() {
                         onChange={val => setForm(prev => ({ ...prev, CONTENT: val }))}
                         style={{ height: 300, marginBottom: 50 }}
                     />
+                </div>
+            </Modal>
+
+            <Modal
+                title="Thêm bài viết tự động"
+                open={showAutoModal}
+                onOk={handleAutoSave}
+                onCancel={() => setShowAutoModal(false)}
+                okText="Tạo"
+                cancelText="Hủy"
+                width={600}
+            >
+                <div className="mb-3 mt-3">
+                    <label className="form-label fw-semibold">Link file (driver_url) <span className="text-danger">*</span></label>
+                    <Input
+                        placeholder="Nhập link file Google Drive"
+                        value={autoForm.driver_url}
+                        onChange={e => setAutoForm(prev => ({ ...prev, driver_url: e.target.value }))}
+                    />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Thumbnail <span className="text-danger">*</span></label>
+                    <input type="file" accept="image/*" className="form-control" onChange={handleAutoThumbnailUpload} />
+                    {autoForm.thumbnail && (
+                        <img src={autoForm.thumbnail} alt="thumbnail preview" style={{ marginTop: 8, maxHeight: 120, borderRadius: 6, objectFit: 'cover' }} />
+                    )}
                 </div>
             </Modal>
         </section>
