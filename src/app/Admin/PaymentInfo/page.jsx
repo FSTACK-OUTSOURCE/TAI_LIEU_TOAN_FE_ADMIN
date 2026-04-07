@@ -2,14 +2,14 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import styles from '../../page.module.css';
 import { useEffect, useState } from 'react';
-import { Table, Button, Radio, Tag, InputNumber, Modal, Upload, Image } from 'antd';
+import { Table, Button, Radio, Tag, InputNumber, Input, Modal, Upload, Image } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { getPaymentInfo, savePaymentInfo, deletePaymentInfoById } from '@/app/Api/apiPaymentInfo';
 import { getClientSideCookie } from '@/app/Api';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
-const emptyForm = { PAYMENT_ID: null, VALUE: null, QR_URL: '' };
+const emptyForm = { PAYMENT_ID: null, VALUE: null, QR_URL: '', BANK_NAME: '', ACCOUNT_NAME: '', ACCOUNT_NUMBER: '' };
 
 export default function PaymentInfoPage() {
     const [data, setData] = useState([]);
@@ -35,7 +35,7 @@ export default function PaymentInfoPage() {
     };
 
     const openEdit = (record) => {
-        setForm({ PAYMENT_ID: record.PAYMENT_ID, VALUE: record.VALUE, QR_URL: record.QR_URL || '' });
+        setForm({ PAYMENT_ID: record.PAYMENT_ID, VALUE: record.VALUE, QR_URL: record.QR_URL || '', BANK_NAME: record.BANK_NAME || '', ACCOUNT_NAME: record.ACCOUNT_NAME || '', ACCOUNT_NUMBER: record.ACCOUNT_NUMBER || '' });
         setFileList(record.QR_URL ? [{
             uid: '-1',
             name: 'qr.png',
@@ -99,6 +99,9 @@ export default function PaymentInfoPage() {
             dataIndex: 'VALUE',
             render: (val) => val ? <Tag color="blue">{Number(val).toLocaleString('vi-VN')}đ</Tag> : '—',
         },
+        { title: 'Tên ngân hàng', dataIndex: 'BANK_NAME', render: (val) => val || '—' },
+        { title: 'Tên tài khoản', dataIndex: 'ACCOUNT_NAME', render: (val) => val || '—' },
+        { title: 'Số tài khoản', dataIndex: 'ACCOUNT_NUMBER', render: (val) => val || '—' },
         {
             title: 'Ảnh QR',
             width: 120,
@@ -163,6 +166,30 @@ export default function PaymentInfoPage() {
                         value={form.VALUE}
                         onChange={val => setForm(prev => ({ ...prev, VALUE: val }))}
                         placeholder="VD: 100000"
+                    />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Tên ngân hàng</label>
+                    <Input
+                        value={form.BANK_NAME}
+                        onChange={e => setForm(prev => ({ ...prev, BANK_NAME: e.target.value }))}
+                        placeholder="VD: Vietcombank"
+                    />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Tên tài khoản</label>
+                    <Input
+                        value={form.ACCOUNT_NAME}
+                        onChange={e => setForm(prev => ({ ...prev, ACCOUNT_NAME: e.target.value }))}
+                        placeholder="VD: NGUYEN VAN A"
+                    />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Số tài khoản</label>
+                    <Input
+                        value={form.ACCOUNT_NUMBER}
+                        onChange={e => setForm(prev => ({ ...prev, ACCOUNT_NUMBER: e.target.value }))}
+                        placeholder="VD: 1234567890"
                     />
                 </div>
                 <div className="mb-3">
