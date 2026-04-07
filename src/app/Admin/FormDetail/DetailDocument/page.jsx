@@ -26,6 +26,7 @@ const DetailDocument = (props) => {
     const [file, setFile] = useState(null);
     const [fileUploadPdf, setFileUploadPdf] = useState(null);
     const [fileImage, setFileImage] = useState([]);
+    const [fileImages, setFileImages] = useState([]);
     const [fileDoc, setFileDoc] = useState([]);
     const [filePdf, setFilePdf] = useState([]);
     const [existingImages, setExistingImages] = useState([]);
@@ -113,6 +114,18 @@ const DetailDocument = (props) => {
                         url: `${process.env.NEXT_PUBLIC_API_URL}${response.Items[0].IMAGE_LINK}`
                     }])
                 }
+                if (response.Items[0].IMAGES) {
+                    try {
+                        const paths = JSON.parse(response.Items[0].IMAGES);
+                        setFileImages(paths.map((path, idx) => ({
+                            uid: `detail-img-${idx}`,
+                            name: `image-${idx}.png`,
+                            status: 'done',
+                            url: `${process.env.NEXT_PUBLIC_API_URL}${path}`,
+                            path,
+                        })));
+                    } catch {}
+                }
                 if (response.Items[0].FILE_KEY) {
                     setFileDoc([{
                         uid: response.Items[0].FILE_KEY,
@@ -181,6 +194,36 @@ const DetailDocument = (props) => {
             }
         });
         onSuccess(response.data);
+    }
+
+    const uploadDetailImage = async ({ file, onSuccess, onError }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/file/upload`, formData, {
+                headers: {
+                    'Authorization': `Bearer ${getClientSideCookie('token')}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            onSuccess(response.data);
+            const newPath = response.data.FilePath;
+            setFileImages(prev => {
+                const newList = [...prev, { uid: newPath, name: 'image.png', status: 'done', url: `${process.env.NEXT_PUBLIC_API_URL}${newPath}`, path: newPath }];
+                setData(d => ({ ...d, IMAGES: JSON.stringify(newList.map(x => x.path)) }));
+                return newList;
+            });
+        } catch (err) {
+            onError(err);
+        }
+    }
+
+    const handleDetailImageRemove = (file) => {
+        setFileImages(prev => {
+            const newList = prev.filter(x => x.uid !== file.uid);
+            setData(d => ({ ...d, IMAGES: JSON.stringify(newList.map(x => x.path)) }));
+            return newList;
+        });
     }
 
     useEffect(() => {
@@ -399,6 +442,27 @@ const DetailDocument = (props) => {
                             </div>
                         </div>
 
+                    </div>
+
+                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1">
+                        <div className="d-flex flex-row align-items-center mb-3">
+                            <div className="form-outline flex-fill mb-0">
+                                <label>Ảnh chi tiết (nhiều ảnh)</label>
+                                <Upload
+                                    customRequest={uploadDetailImage}
+                                    listType="picture-card"
+                                    fileList={fileImages}
+                                    accept='image/*'
+                                    multiple={true}
+                                    onRemove={handleDetailImageRemove}
+                                >
+                                    <div>
+                                        <PlusOutlined />
+                                        <div style={{ marginTop: 8 }}>Tải ảnh lên</div>
+                                    </div>
+                                </Upload>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1">
