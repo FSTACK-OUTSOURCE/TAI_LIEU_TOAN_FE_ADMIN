@@ -77,6 +77,8 @@ export default function BlogPage() {
             }
         } catch {
             Swal.fire('Lỗi', 'Không thể tải ảnh lên', 'error');
+        } finally {
+            e.target.value = '';
         }
     };
 
@@ -101,7 +103,8 @@ export default function BlogPage() {
                 },
                 body: JSON.stringify({
                     driver_url: autoForm.driver_url,
-                    thumbnail: autoForm.thumbnail
+                    thumbnail_url: autoForm.thumbnail,
+                    user_id: getUserIdFromToken(),
                 })
             });
 
