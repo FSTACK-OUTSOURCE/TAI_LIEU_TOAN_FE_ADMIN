@@ -3,7 +3,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { useEffect, useState } from 'react';
 import { Table, Tag, Input } from 'antd';
 import { BellOutlined, SearchOutlined } from '@ant-design/icons';
-import { getUserInfos } from '@/app/Api/apiRegistration';
+import { getUserInfos, markAllRead } from '@/app/Api/apiRegistration';
 import { FormatDateTime } from '@/app/constans';
 
 const { Search } = Input;
@@ -43,7 +43,9 @@ export default function NotificationPage() {
         fetchData(p, keyword);
     };
 
-    useEffect(() => { fetchData(1, ''); }, []);
+    useEffect(() => {
+        fetchData(1, '').then(() => markAllRead());
+    }, []);
 
     const columns = [
         { title: 'STT', dataIndex: 'STT', width: 60 },
@@ -62,6 +64,8 @@ export default function NotificationPage() {
             render: (val) => val ? FormatDateTime(new Date(val)) : '—',
         },
     ];
+
+    const rowClassName = (record) => record.IS_READ ? '' : 'table-row-unread';
 
     return (
         <div className="p-4">
@@ -83,9 +87,11 @@ export default function NotificationPage() {
                 />
             </div>
 
+            <style>{`.table-row-unread td { background: #fffbe6 !important; font-weight: 600; }`}</style>
             <Table
                 columns={columns}
                 dataSource={data}
+                rowClassName={rowClassName}
                 pagination={{
                     current: page,
                     pageSize,

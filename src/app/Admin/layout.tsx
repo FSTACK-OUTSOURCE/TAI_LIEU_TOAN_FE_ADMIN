@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 import Styles from "../page.module.css";
 const inter = Inter({ subsets: ["latin"] });
 
+import { getUnreadCount } from '@/app/Api/apiRegistration';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -16,6 +18,7 @@ export default function RootLayout({
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const admin = localStorage.getItem('isAdmin') === '1';
@@ -26,6 +29,12 @@ export default function RootLayout({
     }
     setIsAdmin(admin);
     setReady(true);
+
+    // fetch unread count + poll every 30s
+    const fetchUnread = async () => setUnreadCount(await getUnreadCount());
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -71,9 +80,26 @@ export default function RootLayout({
                         </Link>
                       </li>
                       <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Notification" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Đăng ký mới
+                        <Link href="/Admin/Notification" className={`nav-link ${Styles.fontSideBar}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>
+                            <svg className="bi me-2" width="16" height="16"></svg>
+                            Đăng ký mới
+                          </span>
+                          {unreadCount > 0 && (
+                            <span style={{
+                              background: '#ff4d4f',
+                              color: '#fff',
+                              borderRadius: '10px',
+                              padding: '1px 7px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              minWidth: '20px',
+                              textAlign: 'center',
+                              lineHeight: '18px',
+                            }}>
+                              {unreadCount > 99 ? '99+' : unreadCount}
+                            </span>
+                          )}
                         </Link>
                       </li>
                       <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
