@@ -26,9 +26,13 @@ export const getClientSideCookie = (name: string): string | undefined => {
 
 
 function redirectLogin() {
-    var path = window.location.pathname
-    var search = window.location.search
-    window.location.href = window.location.origin + '/Login?redirectUrl=' + path + search;
+    const expired = "expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
+    document.cookie = `token=; ${expired}`;
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem('isEditer');
+    var path = window.location.pathname;
+    if (path === '/Login') return;
+    window.location.href = window.location.origin + '/Login?redirectUrl=' + path;
 }
 
 
@@ -144,7 +148,8 @@ export const callRestApi = async ({ loading = true, headers, ...arg }: any) => {
                 return Promise.resolve({ ...error?.response.data, success: false });
             }
             if (error?.response?.status === 401) {
-                redirectLogin()
+                redirectLogin();
+                return Promise.resolve({ success: false });
             }
             Swal.fire({
                 title: 'Thông báo',
