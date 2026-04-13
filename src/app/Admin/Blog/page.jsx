@@ -23,7 +23,7 @@ const getUserIdFromToken = () => {
     } catch { return null; }
 };
 
-const emptyForm = { BLOG_ID: null, TITLE: '', DESCRIPTION: '', CONTENT: '', THUMBNAIL: '' };
+const emptyForm = { BLOG_ID: null, TITLE: '', DESCRIPTION: '', CONTENT: '', THUMBNAIL: '', FILE_URL: '', DOCUMENT_URL: '' };
 
 export default function BlogPage() {
     const [data, setData] = useState([]);
@@ -56,7 +56,7 @@ export default function BlogPage() {
     };
 
     const openAutoAdd = () => {
-        setAutoForm({ driver_url: '', thumbnail: '' });
+        setAutoForm({ driver_url: '', thumbnail: '', document_url: '' });
         setShowAutoModal(true);
     };
 
@@ -105,6 +105,7 @@ export default function BlogPage() {
                     driver_url: autoForm.driver_url,
                     thumbnail_url: autoForm.thumbnail,
                     user_id: getUserIdFromToken(),
+                    document_url: autoForm.document_url || null,
                 })
             });
 
@@ -121,7 +122,7 @@ export default function BlogPage() {
     };
 
     const openEdit = (record) => {
-        setForm({ BLOG_ID: record.BLOG_ID, TITLE: record.TITLE || '', DESCRIPTION: record.DESCRIPTION || '', CONTENT: record.CONTENT || '', THUMBNAIL: record.THUMBNAIL || '' });
+        setForm({ BLOG_ID: record.BLOG_ID, TITLE: record.TITLE || '', DESCRIPTION: record.DESCRIPTION || '', CONTENT: record.CONTENT || '', THUMBNAIL: record.THUMBNAIL || '', FILE_URL: record.FILE_URL || '', DOCUMENT_URL: record.DOCUMENT_URL || '' });
         setShowModal(true);
     };
 
@@ -338,6 +339,22 @@ export default function BlogPage() {
                     />
                 </div>
                 <div className="mb-3">
+                    <label className="form-label fw-semibold">Trang dowload tài liệu (document_url)</label>
+                    <Input
+                        placeholder="Nhập link trang detail tài liệu (VD: /document/ten-tai-lieu)"
+                        value={form.DOCUMENT_URL}
+                        onChange={e => setForm(prev => ({ ...prev, DOCUMENT_URL: e.target.value }))}
+                    />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Link file preview (file_url)</label>
+                    <Input
+                        placeholder="Nhập link Google Drive để preview"
+                        value={form.FILE_URL}
+                        onChange={e => setForm(prev => ({ ...prev, FILE_URL: e.target.value }))}
+                    />
+                </div>
+                <div className="mb-3">
                     <label className="form-label fw-semibold">Nội dung</label>
                     <ReactQuill
                         value={form.CONTENT}
@@ -362,6 +379,14 @@ export default function BlogPage() {
                         placeholder="Nhập link file Google Drive"
                         value={autoForm.driver_url}
                         onChange={e => setAutoForm(prev => ({ ...prev, driver_url: e.target.value }))}
+                    />
+                </div>
+                <div className="mb-3">
+                    <label className="form-label fw-semibold">Trang dowload tài liệu (document_url)</label>
+                    <Input
+                        placeholder="Nhập link trang detail tài liệu (VD: /document/ten-tai-lieu)"
+                        value={autoForm.document_url}
+                        onChange={e => setAutoForm(prev => ({ ...prev, document_url: e.target.value }))}
                     />
                 </div>
                 <div className="mb-3">
