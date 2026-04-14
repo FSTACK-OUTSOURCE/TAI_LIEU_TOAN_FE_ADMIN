@@ -351,6 +351,69 @@ const DetailDocument = (props) => {
                             }} />
                         </div>
                     </div>
+                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
+                        <div className="form-outline flex-fill mb-0">
+                            <label>Môn học</label>
+                            <input type="text" className="form-control" placeholder='Nhập môn học' value={data?.SUBJECT || ''} onChange={(e) => {
+                                onChange({ ...data, SUBJECT: e.target.value })
+                            }} />
+                        </div>
+                    </div>
+                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
+                        <div className="form-outline flex-fill mb-0">
+                            <label>Lớp</label>
+                            <input type="text" className="form-control" placeholder='Nhập lớp (vd: Lớp 10)' value={data?.GRADE || ''} onChange={(e) => {
+                                onChange({ ...data, GRADE: e.target.value })
+                            }} />
+                        </div>
+                    </div>
+                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
+                        <div className="form-outline flex-fill mb-0">
+                            <label>Số trang</label>
+                            <input type="number" min={0} className="form-control" placeholder='Nhập số trang' value={data?.PAGE_COUNT || ''} onChange={(e) => {
+                                onChange({ ...data, PAGE_COUNT: e.target.value })
+                            }} />
+                        </div>
+                    </div>
+                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
+                        <div className="form-outline flex-fill mb-0">
+                            <label>Loại tài liệu</label>
+                            <Select
+                                value={data?.CATEGORY || null}
+                                placeholder="-- Chọn loại tài liệu --"
+                                allowClear
+                                onChange={(value) => onChange({ ...data, CATEGORY: value || null })}
+                                style={{ width: '100%', height: '40px' }}
+                                options={[
+                                    { value: 'single', label: 'Tài liệu lẻ' },
+                                    { value: 'bundle', label: 'Tài liệu bộ' },
+                                ]}
+                            />
+                        </div>
+                    </div>
+                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
+                        <div className="form-outline flex-fill mb-0">
+                            <label>Định dạng file</label>
+                            <Select
+                                value={data?.FILE_TYPE || null}
+                                placeholder="-- Chọn định dạng file --"
+                                allowClear
+                                onChange={(value) => onChange({ ...data, FILE_TYPE: value || null })}
+                                style={{ width: '100%', height: '40px' }}
+                                options={[
+                                    { value: 'doc', label: 'Word (.doc)' },
+                                    { value: 'docx', label: 'Word (.docx)' },
+                                    { value: 'pdf', label: 'PDF (.pdf)' },
+                                    { value: 'xlsx', label: 'Excel (.xlsx)' },
+                                    { value: 'xls', label: 'Excel (.xls)' },
+                                    { value: 'ppt', label: 'PowerPoint (.ppt)' },
+                                    { value: 'pptx', label: 'PowerPoint (.pptx)' },
+                                    { value: 'rar', label: 'RAR (.rar)' },
+                                    { value: 'zip', label: 'ZIP (.zip)' },
+                                ]}
+                            />
+                        </div>
+                    </div>
                     <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
                         <div className="d-flex flex-row align-items-center mb-3">
                             <div className="form-outline flex-fill mb-0">
