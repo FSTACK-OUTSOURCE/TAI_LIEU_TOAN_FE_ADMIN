@@ -391,27 +391,31 @@ const DetailDocument = (props) => {
                             />
                         </div>
                     </div>
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Định dạng file</label>
-                            <Select
-                                value={data?.FILE_TYPE || null}
-                                placeholder="-- Chọn định dạng file --"
-                                allowClear
-                                onChange={(value) => onChange({ ...data, FILE_TYPE: value || null })}
-                                style={{ width: '100%', height: '40px' }}
-                                options={[
-                                    { value: 'doc', label: 'Word (.doc)' },
-                                    { value: 'docx', label: 'Word (.docx)' },
-                                    { value: 'pdf', label: 'PDF (.pdf)' },
-                                    { value: 'xlsx', label: 'Excel (.xlsx)' },
-                                    { value: 'xls', label: 'Excel (.xls)' },
-                                    { value: 'ppt', label: 'PowerPoint (.ppt)' },
-                                    { value: 'pptx', label: 'PowerPoint (.pptx)' },
-                                    { value: 'rar', label: 'RAR (.rar)' },
-                                    { value: 'zip', label: 'ZIP (.zip)' },
-                                ]}
-                            />
+                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
+                        <div className="row">
+                            <div className="col-md-6 col-lg-6 col-xl-6">
+                                <div className="form-outline flex-fill mb-0">
+                                    <label>Định dạng file</label>
+                                    <Select
+                                        value={data?.FILE_TYPE || null}
+                                        placeholder="-- Chọn định dạng file --"
+                                        allowClear
+                                        onChange={(value) => onChange({ ...data, FILE_TYPE: value || null })}
+                                        style={{ width: '100%', height: '40px' }}
+                                        options={[
+                                            { value: 'doc', label: 'Word (.doc)' },
+                                            { value: 'docx', label: 'Word (.docx)' },
+                                            { value: 'pdf', label: 'PDF (.pdf)' },
+                                            { value: 'xlsx', label: 'Excel (.xlsx)' },
+                                            { value: 'xls', label: 'Excel (.xls)' },
+                                            { value: 'ppt', label: 'PowerPoint (.ppt)' },
+                                            { value: 'pptx', label: 'PowerPoint (.pptx)' },
+                                            { value: 'rar', label: 'RAR (.rar)' },
+                                            { value: 'zip', label: 'ZIP (.zip)' },
+                                        ]}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
