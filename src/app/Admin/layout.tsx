@@ -138,12 +138,6 @@ export default function RootLayout({
                           Lịch sử mua hàng
                         </Link>
                       </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/PaymentInfo" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Thông tin thanh toán
-                        </Link>
-                      </li>
                     </>
                   )}
                   <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
