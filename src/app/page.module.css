@@ -234,6 +234,15 @@
 
 .sideBar {
   box-shadow: 3px 3px 3px 3px rgba(90, 84, 84, 0.5);
+  height: 100vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  scrollbar-width: none;
+}
+
+.sideBar::-webkit-scrollbar {
+  display: none;
 }
 
 .height100 {

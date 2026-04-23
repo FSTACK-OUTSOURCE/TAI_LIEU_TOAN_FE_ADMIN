@@ -3,9 +3,9 @@ import Cookies from 'js-cookie';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import styles from "../page.module.css";
 import Image from "next/image";
-import FontAwesomeIcon from "../Component/fontAwesome.jsx";
 import { useEffect, useRef } from 'react';
 import { getTokenByUser } from '../Api/apiUser';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 
 
@@ -20,7 +20,13 @@ export default function Login() {
     const queryParams = { USER_NAME: username, PASSWORD: password };
     const response = await getTokenByUser(queryParams);
     if(response.success){
-      Cookies.set('token', response.access_token);
+      const token = response.access_token;
+      Cookies.set('token', token);
+      try {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        localStorage.setItem('isAdmin', decoded?.IsRoot === 'True' ? '1' : '0');
+        localStorage.setItem('isEditer', decoded?.IsEditer === 'True' ? '1' : '0');
+      } catch {}
       const queryParameters = new URLSearchParams(window.location.search)
       var return_url = queryParameters.get("redirectUrl");
       window.location.href = return_url ? window.location.origin + return_url : window.location.origin + '/Admin'
@@ -39,7 +45,7 @@ export default function Login() {
                   <div className="col-md-9 col-lg-6 col-xl-5">
                     <Image
                       src="/login.png"
-                      alt="Ảnh bị ẩn do mạng"
+                      alt="Tài liệu toán.vn"
                       className='img-fluid'
                       width={500}
                       height={300}
