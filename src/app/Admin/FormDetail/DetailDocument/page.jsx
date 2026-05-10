@@ -26,6 +26,7 @@ import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { saveAs } from "file-saver";
 import { useEffect, useState } from "react";
+import Swal from "sweetalert2";
 import styles from "../../../page.module.css";
 const { TextArea } = Input;
 
@@ -44,6 +45,17 @@ const DetailDocument = (props) => {
     const [existingImages, setExistingImages] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [createBlog, setCreateBlog] = useState(false);
+
+    const getUserIdFromToken = () => {
+        try {
+            const token = getClientSideCookie("token");
+            if (!token) return null;
+            return JSON.parse(atob(token.split(".")[1]))?.UserId ?? null;
+        } catch {
+            return null;
+        }
+    };
 
     const GetTopics = async (ids, key) => {
         const queryParams = { NAME: key, TOPIC_IDS: ids };
@@ -199,6 +211,40 @@ const DetailDocument = (props) => {
 
         const response = await postDocumentInfo(formData);
         if (response.success) {
+            if (createBlog) {
+                if (!data.LINK_FULL?.trim()) {
+                    Swal.fire("Lỗi", "Vui lòng nhập Link trọn bộ để tạo blog", "warning");
+                    return;
+                }
+                if (!data.IMAGE_LINK?.trim()) {
+                    Swal.fire("Lỗi", "Vui lòng upload Ảnh để tạo blog", "warning");
+                    return;
+                }
+                try {
+                    Swal.fire({ title: "Đang tạo blog...", allowOutsideClick: false });
+                    Swal.showLoading();
+                    const thumbnailUrl = data.IMAGE_LINK.startsWith("http")
+                        ? data.IMAGE_LINK
+                        : `${process.env.NEXT_PUBLIC_API_URL}${data.IMAGE_LINK}`;
+                    const n8nResponse = await fetch(process.env.NEXT_PUBLIC_N8N_API, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            driver_url: data.LINK_FULL,
+                            thumbnail_url: thumbnailUrl,
+                            user_id: getUserIdFromToken(),
+                            document_url:`https://tailieutoan.vn/${response.NAME_SLUG}`,
+                        }),
+                    });
+                    if (n8nResponse.ok) {
+                        Swal.fire("Thành công", "Đã lưu tài liệu và tạo bài viết blog thành công", "success");
+                    } else {
+                        Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng tạo blog tự động thất bại", "warning");
+                    }
+                } catch {
+                    Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng không thể kết nối đến webhook blog", "warning");
+                }
+            }
             onClose();
         }
     };
@@ -839,7 +885,7 @@ const DetailDocument = (props) => {
                     <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1">
                         <div className="d-flex flex-row align-items-center mb-4">
                             <div className="form-outline flex-fill mb-0">
-                                <label>Mô tả</label>
+                                <label>Mô tảâ</label>
                                 <ReactQuill
                                     theme="snow"
                                     value={quill}
@@ -848,6 +894,16 @@ const DetailDocument = (props) => {
                                     }}
                                 />
                             </div>
+                        </div>
+                    </div>
+                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1">
+                        <div className="d-flex flex-row align-items-center mb-4">
+                            <Checkbox
+                                checked={createBlog}
+                                onChange={(e) => setCreateBlog(e.target.checked)}
+                            >
+                                Tạo blog (dùng Ảnh và Link trọn bộ)
+                            </Checkbox>
                         </div>
                     </div>
                     <div className="col-md-10 col-lg-6 col-xl-6 order-2 order-lg-1">
