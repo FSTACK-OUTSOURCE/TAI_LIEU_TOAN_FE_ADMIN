@@ -1,6 +1,6 @@
 "use client";
 import { getUserInfo, postUserInfo, updateUserRole } from "@/app/Api/apiUser";
-import { Filter } from "@/app/component/Filter";
+import { Filter } from "@/app/Component/Filter";
 import {
     EyeInvisibleOutlined,
     EyeTwoTone,

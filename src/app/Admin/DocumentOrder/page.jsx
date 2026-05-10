@@ -3,7 +3,7 @@ import {
     deleteDocumentOrders,
     getDocumentOrders,
 } from "@/app/Api/apiDocumentOrder";
-import { Filter } from "@/app/component/Filter";
+import { Filter } from "@/app/Component/Filter";
 import { PlusOutlined } from "@ant-design/icons";
 import { Button, Checkbox, Radio, Table } from "antd";
 import "bootstrap/dist/css/bootstrap.min.css";

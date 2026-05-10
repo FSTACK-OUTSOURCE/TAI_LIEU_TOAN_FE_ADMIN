@@ -8,8 +8,8 @@ import {
 } from "@/app/Api/apiDocument";
 import { deleteFile, getFiles } from "@/app/Api/apiFile";
 import { getTopicInfo } from "@/app/Api/apiTopic";
-import { DebounceSelect } from "@/app/component/DebounceSelect";
-import { ReactQuill } from "@/app/component/TextEditor";
+import { DebounceSelect } from "@/app/Component/DebounceSelect";
+import { ReactQuill } from "@/app/Component/TextEditor";
 import { guidEmpty } from "@/app/constans";
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import {

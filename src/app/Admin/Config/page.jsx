@@ -1,7 +1,7 @@
 "use client";
 import { getClientSideCookie } from "@/app/Api";
 import { getConfigs, saveConfigs } from "@/app/Api/apiConfig";
-import { ReactQuill } from "@/app/component/TextEditor";
+import { ReactQuill } from "@/app/Component/TextEditor";
 import { PlusOutlined } from "@ant-design/icons";
 import { Image, Upload } from "antd";
 import axios from "axios";

@@ -1,7 +1,7 @@
 "use client";
 import { deleteBlogById, getBlog, saveBlog } from "@/app/Api/apiBlog";
 import { uploadFile } from "@/app/Api/apiFile";
-import { ReactQuill } from "@/app/component/TextEditor";
+import { ReactQuill } from "@/app/Component/TextEditor";
 import { FormatDateTime } from "@/app/constans";
 import {
     BarChartOutlined,
