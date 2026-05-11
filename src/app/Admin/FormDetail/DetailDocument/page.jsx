@@ -46,6 +46,7 @@ const DetailDocument = (props) => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [createBlog, setCreateBlog] = useState(false);
+    const [showUploadModal, setShowUploadModal] = useState(false);
 
     const getUserIdFromToken = () => {
         try {
@@ -378,6 +379,7 @@ const DetailDocument = (props) => {
     };
 
     return (
+        <>
         <Modal
             open={true}
             footer={null}
@@ -441,7 +443,15 @@ const DetailDocument = (props) => {
                     </div>
                     <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
                         <div className="form-outline flex-fill mb-0">
-                            <label>Link xem trước</label>
+                            <div className="d-flex align-items-center gap-2 mb-1">
+                                <label className="mb-0">Link xem trước</label>
+                                <Button
+                                    size="small"
+                                    onClick={() => setShowUploadModal(true)}
+                                >
+                                    Lấy link xem trước
+                                </Button>
+                            </div>
                             <input
                                 type="text"
                                 className="form-control"
@@ -927,6 +937,22 @@ const DetailDocument = (props) => {
                 </div>
             </div>
         </Modal>
+
+        <Modal
+            title="Get link preview"
+            open={showUploadModal}
+            onCancel={() => setShowUploadModal(false)}
+            footer={null}
+            width={900}
+            styles={{ body: { padding: 0 } }}
+        >
+            <iframe
+                src="https://tailieutoan.vn/private/unix/upload"
+                style={{ width: "100%", height: 600, border: "none" }}
+                title="Upload preview"
+            />
+        </Modal>
+        </>
     );
 };
 
