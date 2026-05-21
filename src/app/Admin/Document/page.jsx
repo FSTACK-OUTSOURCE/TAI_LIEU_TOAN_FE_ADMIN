@@ -7,6 +7,7 @@ import React from "react";
 import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Button, Radio, Table, Checkbox, Anchor, Input, Select, DatePicker } from 'antd';
 import DetailDocument from '../FormDetail/DetailDocument/page';
+import QuickCreateDocument from '../FormDetail/QuickCreateDocument/page';
 import { deleteDocumentById, getDocumentInfo, getParentDocuments, quickCreateFolderDocument } from '@/app/Api/apiDocument';
 import { getTopicInfo } from '@/app/Api/apiTopic';
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -24,6 +25,7 @@ export default function Document() {
     const { Link } = Anchor;
     const [selectedRows, setSelectedRows] = useState([]);
     const [showPopup, setShowPopup] = useState(false);
+    const [showQuickCreate, setShowQuickCreate] = useState(false);
     const [documentId, setDocumentId] = useState(null);
     const [topics, setTopics] = useState([]);
     const [filter, setFilter] = useState({ NAME: '', TOPIC_IDS: '', CREATED_DATE_FROM: null, CREATED_DATE_TO: null });
@@ -362,9 +364,13 @@ export default function Document() {
                     <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<PlusOutlined />} size={size} onClick={quickCreate}>
                         Tạo nhanh thư mục
                     </Button>
+                    <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<PlusOutlined />} size={size} onClick={() => setShowQuickCreate(true)}>
+                        Tạo tài liệu tự động
+                    </Button>
                 </div>
             </div>
             {showPopup && <DetailDocument onClose={() => { togglePopup(parentDocumentId) }} documentId={documentId} parentDocumentId={parentDocumentId} />}
+            {showQuickCreate && <QuickCreateDocument onClose={() => { setShowQuickCreate(false); getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: pagination.current, PageSize: pagination.pageSize }); }} parentDocumentId={parentDocumentId} />}
             <div className={`col-md-12 ${styles.contentRight}`}>
                 <Breadcrumb
                     items={breadData}
