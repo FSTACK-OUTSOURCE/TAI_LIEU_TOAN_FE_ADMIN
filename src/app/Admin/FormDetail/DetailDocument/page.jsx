@@ -181,6 +181,20 @@ const DetailDocument = (props) => {
                         },
                     ]);
                 }
+                const doc = response.Items[0];
+                const parentId = doc.PARENT_DOCUMENT_ID;
+                if ((!doc.GRADE || !doc.SUBJECT) && parentId && parentId !== guidEmpty) {
+                    getDocumentInfo({ DOCUMENT_ID: parentId, Columns: "*" }, false).then((parentRes) => {
+                        if (parentRes.success && parentRes.Items?.length > 0) {
+                            const parent = parentRes.Items[0];
+                            setData((prev) => ({
+                                ...prev,
+                                GRADE: prev.GRADE || parent.GRADE || undefined,
+                                SUBJECT: prev.SUBJECT || parent.SUBJECT || undefined,
+                            }));
+                        }
+                    });
+                }
             }
         } else {
             // await initOptions({ search: null, parentDocumentId: null })

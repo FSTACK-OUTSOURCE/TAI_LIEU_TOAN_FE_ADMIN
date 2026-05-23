@@ -38,6 +38,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
     const [isImageModalVisible, setIsImageModalVisible] = useState(false);
     const [createBlog, setCreateBlog] = useState(false);
     const [status, setStatus] = useState("published");
+    const [loading, setLoading] = useState(false);
 
     const getUserIdFromToken = () => {
         try {
@@ -124,22 +125,26 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         setFileDoc([latest]);
         if (latest.name) {
             const ext = latest.name.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
-            const nameWithoutExt = ext ? latest.name.slice(0, -ext.length) : latest.name;
             setData((prev) => ({
                 ...prev,
-                NAME: nameWithoutExt,
                 FILE_TYPE: FILE_TYPE_MAP[ext] || prev.FILE_TYPE || null,
             }));
         }
     };
 
-    const handleFilePdfChange = ({ file }) => {
-        if (file.status === "removed") {
+    const handleFilePdfChange = ({ fileList }) => {
+        if (!fileList.length) {
             setFilePdf([]);
             setFileUploadPdf(null);
-        } else {
-            setFilePdf([file]);
-            setFileUploadPdf(file);
+            return;
+        }
+        const latest = fileList[fileList.length - 1];
+        setFilePdf([latest]);
+        setFileUploadPdf(latest);
+        if (latest.name) {
+            const ext = latest.name.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
+            const nameWithoutExt = ext ? latest.name.slice(0, -ext.length) : latest.name;
+            setData((prev) => ({ ...prev, NAME: nameWithoutExt }));
         }
     };
 
@@ -175,6 +180,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
     };
 
     const onSave = async () => {
+        setLoading(true);
         const formData = new FormData();
         if (file) formData.append("FILE", file);
         if (fileUploadPdf) formData.append("FILE_PDF", fileUploadPdf);
@@ -191,7 +197,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         }
 
         const response = await postDocumentInfo(formData);
-        if (response?.DOCUMENT_ID) {
+        if (response?.DOCUMENT_ID && (!documentId || createBlog)) {
             try {
                 const webhookFormData = new FormData();
                 const userId = getUserIdFromToken();
@@ -201,12 +207,11 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                 webhookFormData.append("DOCUMENT_PDF", response?.LINK_PREVIEW ? response?.LINK_PREVIEW : pdfFile || "");
                 webhookFormData.append("DOCUMENT_ID", response?.DOCUMENT_ID || "");
                 webhookFormData.append("DOCUMENT_TITLE", response?.NAME || "");
+                webhookFormData.append("IS_CREATE_BLOG", isCreateBlog ? "true" : "false");
                 webhookFormData.append("THUMBNAIL_URL", response.IMAGE_LINK || "");
-                webhookFormData.append("IS_CREATE_BLOG", isCreateBlog);
-                webhookFormData.append("THUMBNAIL_URL", response.IMAGE_LINK || "");
-                webhookFormData.append("IS_CREATE_NEW", Boolean(documentId));
+                webhookFormData.append("IS_CREATE_NEW", Boolean(documentId) ? "false" : "true");
                 if(isCreateBlog){
-                    webhookFormData.append("DOCUMENT_URL", `https://tailieutoan.vn/${response?.NAME_SLUG || ""}`);
+                    webhookFormData.append("DOCUMENT_URL", `https://tailieutoan.vn/${response?.NAME_SLUG || ""}-${response?.IDENTITY_KEY || ""}`);
                 }
 
                 await fetch(process.env.NEXT_PUBLIC_N8N_QUICK_DOCUMENT_CHILD, {
@@ -217,6 +222,8 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                 console.warn("Webhook call failed:", error);
             }
             onClose();
+        } else {
+            setLoading(false);
         }
     };
 
@@ -234,8 +241,8 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             styles={{ body: { maxHeight: "76vh", overflowY: "auto", padding: "8px 24px 0" } }}
             footer={
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <Button onClick={onClose}>Đóng</Button>
-                    <Button type="primary" onClick={onSave}>Lưu</Button>
+                    <Button onClick={onClose} disabled={loading}>Đóng</Button>
+                    <Button type="primary" loading={loading} onClick={onSave}>Lưu</Button>
                 </div>
             }
         >
