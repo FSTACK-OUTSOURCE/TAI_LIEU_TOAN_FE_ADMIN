@@ -7,13 +7,10 @@ import { DebounceSelect } from "@/app/Component/DebounceSelect";
 import { ReactQuill } from "@/app/Component/TextEditor";
 import { guidEmpty } from "@/app/constans";
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Checkbox, Image, Input, Modal, Radio, Select, Upload } from "antd";
+import { Button, Checkbox, Col, Divider, Image, Input, InputNumber, Modal, Radio, Row, Select, Upload } from "antd";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useEffect, useState } from "react";
-import Swal from "sweetalert2";
-import styles from "../../../page.module.css";
-
 const { TextArea } = Input;
 
 const FILE_TYPE_MAP = {
@@ -29,7 +26,7 @@ const STATUS_FLAGS = {
     hidden: { IS_FOLDER: false, IS_PUBLIC: false, IS_PIN: false, IS_HIDDEN: true },
 };
 
-const QuickCreateDocument = ({ onClose, parentDocumentId }) => {
+const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
     const [data, setData] = useState({ CATEGORY: "single" });
     const [quill, setQuill] = useState("");
     const [file, setFile] = useState(null);
@@ -60,8 +57,32 @@ const QuickCreateDocument = ({ onClose, parentDocumentId }) => {
         return [];
     };
 
+    const GetData = async (docId) => {
+        const res = await getDocumentInfo({ DOCUMENT_ID: docId, Columns: "EMAILS" });
+        if (res.success && res.Items?.length > 0) {
+            const doc = res.Items[0];
+            setData(doc);
+            setQuill(doc.DESCRIPTION || "");
+            if (doc.IS_FOLDER) setStatus("folder");
+            else if (doc.IS_HIDDEN) setStatus("hidden");
+            else if (doc.IS_PIN) setStatus("featured");
+            else setStatus("published");
+            if (doc.IMAGE_LINK) {
+                setFileImage([{ uid: doc.DOCUMENT_ID, name: "image.png", status: "done", url: `${process.env.NEXT_PUBLIC_API_URL}${doc.IMAGE_LINK}` }]);
+            }
+            if (doc.FILE_KEY) {
+                setFileDoc([{ uid: doc.FILE_KEY, id: doc.FILE_KEY, name: `${doc.NAME}${doc.FILE_EXTENSION || ""}`, status: "done" }]);
+            }
+            if (doc.PDF_KEY) {
+                setFilePdf([{ uid: doc.PDF_KEY, id: doc.PDF_KEY, name: `${doc.NAME}${doc.PDF_EXTENSION || ""}`, status: "done" }]);
+            }
+        }
+    };
+
     useEffect(() => {
-        if (parentDocumentId && parentDocumentId !== guidEmpty) {
+        if (documentId) {
+            GetData(documentId);
+        } else if (parentDocumentId && parentDocumentId !== guidEmpty) {
             getDocumentInfo({ DOCUMENT_ID: parentDocumentId, Columns: "*" }, false).then((res) => {
                 if (res.success && res.Items?.length > 0) {
                     const parent = res.Items[0];
@@ -76,7 +97,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId }) => {
         getFiles().then((res) => {
             if (res.success) setExistingImages(res.Data);
         });
-    }, []);
+    }, [documentId]);
 
     const handleFileChange = ({ fileList }) => {
         if (!fileList.length) {
@@ -156,331 +177,241 @@ const QuickCreateDocument = ({ onClose, parentDocumentId }) => {
         }
 
         const response = await postDocumentInfo(formData);
-        if (response.success) {
-            if (createBlog) {
-                try {
-                    Swal.fire({ title: "Đang tạo blog...", allowOutsideClick: false });
-                    Swal.showLoading();
-                    const thumbnailUrl = data.IMAGE_LINK?.startsWith("http")
-                        ? data.IMAGE_LINK
-                        : `${process.env.NEXT_PUBLIC_API_URL}${data.IMAGE_LINK}`;
-                    const n8nResponse = await fetch(process.env.NEXT_PUBLIC_N8N_API, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            driver_url: data.LINK_FULL,
-                            thumbnail_url: thumbnailUrl,
-                            user_id: getUserIdFromToken(),
-                            document_url: `https://tailieutoan.vn/${response.NAME_SLUG}`,
-                        }),
-                    });
-                    if (n8nResponse.ok) {
-                        Swal.fire("Thành công", "Đã lưu tài liệu và tạo bài viết blog thành công", "success");
-                    } else {
-                        Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng tạo blog tự động thất bại", "warning");
-                    }
-                } catch {
-                    Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng không thể kết nối đến webhook blog", "warning");
-                }
+        if (response?.DOCUMENT_ID) {
+            try {
+                const webhookFormData = new FormData();
+                const userId = getUserIdFromToken();
+                if (userId) webhookFormData.append("USER_ID", userId);
+                const pdfFile = fileUploadPdf?.originFileObj ?? fileUploadPdf;
+                webhookFormData.append("DOCUMENT_PDF", response?.LINK_PREVIEW ? response?.LINK_PREVIEW : pdfFile || "");
+                webhookFormData.append("DOCUMENT_ID", response.DOCUMENT_ID);
+                webhookFormData.append("DOCUMENT_TITLE", response.NAME ?? "");
+                webhookFormData.append("IS_CREATE_BLOG", createBlog && response.IMAGE_LINK && userId && pdfFile);
+                webhookFormData.append("THUMBNAIL_URL", response.IMAGE_LINK || "");
+
+                await fetch(process.env.NEXT_PUBLIC_N8N_QUICK_DOCUMENT_CHILD, {
+                    method: "POST",
+                    body: webhookFormData,
+                });
+            } catch(error) {
+                console.warn("Webhook call failed:", error);
             }
             onClose();
         }
     };
 
+    const fieldLabel = (text) => (
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{text}</span>
+    );
+
     return (
-        <Modal open={true} footer={null} closable={false} width={1000}>
-            <div className="col-lg-12">
-                <div className="row justify-content-center">
-                    <p className="text-center h5 pt-3 pb-3 fw-bold mb-3 mx-1 mx-md-4">
-                        Tạo tài liệu tự động
-                    </p>
-
-                    {/* File docs - upload trước để auto-fill tên */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="d-flex flex-row align-items-center mb-3">
-                            <div className="form-outline flex-fill mb-0">
-                                <label>Tài liệu (file docs)</label>
-                                <Upload
-                                    beforeUpload={() => false}
-                                    maxCount={1}
-                                    accept=".xlsx,.xls,.doc,.docx,.ppt,.pptx,.txt,.pdf,.rar,.zip"
-                                    fileList={fileDoc}
-                                    onChange={handleFileChange}
-                                >
-                                    <Button icon={<UploadOutlined />}>Chọn tài liệu</Button>
-                                </Upload>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Tên tài liệu */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Tên tài liệu</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Nhập tên tài liệu"
-                                value={data.NAME || ""}
-                                onChange={(e) => setData((prev) => ({ ...prev, NAME: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-
-                    {/* File PDF */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="d-flex flex-row align-items-center mb-3">
-                            <div className="form-outline flex-fill mb-0">
-                                <label>Tài liệu bản PDF</label>
-                                <Upload
-                                    beforeUpload={() => false}
-                                    maxCount={1}
-                                    accept=".pdf,.rar,.zip"
-                                    fileList={filePdf}
-                                    onChange={handleFilePdfChange}
-                                >
-                                    <Button icon={<UploadOutlined />}>Chọn file PDF</Button>
-                                </Upload>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Giá tiền & Lớp */}
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Giá tiền</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                placeholder="Nhập giá tiền"
-                                value={data.PRICE || ""}
-                                onChange={(e) => setData((prev) => ({ ...prev, PRICE: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Lớp</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Nhập lớp (vd: Lớp 10)"
-                                value={data.GRADE || ""}
-                                onChange={(e) => setData((prev) => ({ ...prev, GRADE: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Môn học & Số trang */}
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Môn học</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Nhập môn học"
-                                value={data.SUBJECT || ""}
-                                onChange={(e) => setData((prev) => ({ ...prev, SUBJECT: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Số trang</label>
-                            <input
-                                type="number"
-                                min={0}
-                                className="form-control"
-                                placeholder="Nhập số trang"
-                                value={data.PAGE_COUNT || ""}
-                                onChange={(e) => setData((prev) => ({ ...prev, PAGE_COUNT: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Loại tài liệu & Định dạng file */}
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Loại tài liệu</label>
-                            <Select
-                                value={data.CATEGORY || "single"}
-                                onChange={(value) => setData((prev) => ({ ...prev, CATEGORY: value }))}
-                                style={{ width: "100%", height: "40px" }}
-                                options={[
-                                    { value: "single", label: "Tài liệu lẻ" },
-                                    { value: "bundle", label: "Tài liệu bộ" },
-                                ]}
-                            />
-                        </div>
-                    </div>
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Định dạng file</label>
-                            <Select
-                                value={data.FILE_TYPE || null}
-                                placeholder="-- Chọn định dạng file --"
-                                allowClear
-                                onChange={(value) => setData((prev) => ({ ...prev, FILE_TYPE: value || null }))}
-                                style={{ width: "100%", height: "40px" }}
-                                options={[
-                                    { value: "doc", label: "Word (.doc)" },
-                                    { value: "docx", label: "Word (.docx)" },
-                                    { value: "pdf", label: "PDF (.pdf)" },
-                                    { value: "xlsx", label: "Excel (.xlsx)" },
-                                    { value: "xls", label: "Excel (.xls)" },
-                                    { value: "ppt", label: "PowerPoint (.ppt)" },
-                                    { value: "pptx", label: "PowerPoint (.pptx)" },
-                                    { value: "rar", label: "RAR (.rar)" },
-                                    { value: "zip", label: "ZIP (.zip)" },
-                                ]}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Danh sách email */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Danh sách email</label>
-                            <TextArea
-                                rows={3}
-                                placeholder="Nhập email ngăn cách nhau dấu ,"
-                                value={data.EMAILS || ""}
-                                onChange={(e) => setData((prev) => ({ ...prev, EMAILS: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Ảnh */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Ảnh</label>
-                            <Upload
-                                customRequest={uploadFile}
-                                listType="picture-card"
-                                fileList={fileImage}
-                                accept="image/*"
-                                multiple={false}
-                                onChange={({ fileList: newFileList }) => {
-                                    setFileImage(newFileList);
-                                    const done = newFileList.filter((x) => x.status === "done");
-                                    if (done.length > 0) {
-                                        setData((prev) => ({ ...prev, IMAGE_LINK: done[0].response.FilePath }));
-                                    }
-                                }}
-                            >
-                                {fileImage.length > 0 ? null : (
-                                    <button style={{ border: 0, background: "none" }} type="button">
-                                        <PlusOutlined />
-                                    </button>
-                                )}
+        <>
+        <Modal
+            open={true}
+            title={<span style={{ fontSize: 16, fontWeight: 600 }}>{documentId ? "Cập nhật tài liệu" : "Tạo tài liệu tự động"}</span>}
+            onCancel={onClose}
+            width={960}
+            styles={{ body: { maxHeight: "76vh", overflowY: "auto", padding: "8px 24px 0" } }}
+            footer={
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <Button onClick={onClose}>Đóng</Button>
+                    <Button type="primary" onClick={onSave}>Lưu</Button>
+                </div>
+            }
+        >
+            {/* Upload files */}
+            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>Tài liệu</Divider>
+            <Row gutter={16}>
+                <Col span={12}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Tài liệu (file docs)")}
+                        <div style={{ marginTop: 6 }}>
+                            <Upload beforeUpload={() => false} maxCount={1} accept=".xlsx,.xls,.doc,.docx,.ppt,.pptx,.txt,.pdf,.rar,.zip" fileList={fileDoc} onChange={handleFileChange}>
+                                <Button icon={<UploadOutlined />}>Chọn tài liệu</Button>
                             </Upload>
-                            <Button onClick={() => setIsImageModalVisible(true)}>Chọn ảnh có sẵn</Button>
-                            <Modal
-                                title="Ảnh đang có"
-                                open={isImageModalVisible}
-                                footer={null}
-                                onCancel={() => setIsImageModalVisible(false)}
-                            >
-                                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                                    {existingImages.map((image) => (
-                                        <Image
-                                            key={image}
-                                            width={100}
-                                            src={`${process.env.NEXT_PUBLIC_API_URL}${image}`}
-                                            preview={false}
-                                            onClick={() => handleSelectImage(image)}
-                                            style={{
-                                                cursor: "pointer",
-                                                border: data.IMAGE_LINK === image ? "2px solid #1890ff" : "1px solid #d9d9d9",
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            </Modal>
                         </div>
                     </div>
+                </Col>
+                <Col span={12}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Tài liệu bản PDF")}
+                        <div style={{ marginTop: 6 }}>
+                            <Upload beforeUpload={() => false} maxCount={1} accept=".pdf,.rar,.zip" fileList={filePdf} onChange={handleFilePdfChange}>
+                                <Button icon={<UploadOutlined />}>Chọn file PDF</Button>
+                            </Upload>
+                        </div>
+                    </div>
+                </Col>
+            </Row>
 
-                    {/* Chủ đề */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Chủ đề</label>
+            <div style={{ marginBottom: 16 }}>
+                {fieldLabel("Tên tài liệu")}
+                <Input
+                    style={{ marginTop: 6 }}
+                    placeholder="Tự điền từ tên file, có thể sửa lại"
+                    value={data.NAME || ""}
+                    onChange={(e) => setData((prev) => ({ ...prev, NAME: e.target.value }))}
+                />
+            </div>
+
+            {/* Thông tin cơ bản */}
+            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280" }}>Thông tin</Divider>
+            <Row gutter={16}>
+                <Col span={8}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Giá tiền")}
+                        <InputNumber
+                            style={{ width: "100%", marginTop: 6 }}
+                            placeholder="Nhập giá tiền"
+                            min={0}
+                            value={data.PRICE || undefined}
+                            formatter={(val) => val ? `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""}
+                            parser={(val) => val.replace(/,/g, "")}
+                            onChange={(val) => setData((prev) => ({ ...prev, PRICE: val }))}
+                        />
+                    </div>
+                </Col>
+                <Col span={8}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Lớp")}
+                        <Input style={{ marginTop: 6 }} placeholder="vd: Lớp 10" value={data.GRADE || ""} onChange={(e) => setData((prev) => ({ ...prev, GRADE: e.target.value }))} />
+                    </div>
+                </Col>
+                <Col span={8}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Môn học")}
+                        <Input style={{ marginTop: 6 }} placeholder="Nhập môn học" value={data.SUBJECT || ""} onChange={(e) => setData((prev) => ({ ...prev, SUBJECT: e.target.value }))} />
+                    </div>
+                </Col>
+            </Row>
+            <Row gutter={16}>
+                <Col span={8}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Số trang")}
+                        <InputNumber style={{ width: "100%", marginTop: 6 }} placeholder="Số trang" min={0} value={data.PAGE_COUNT || undefined} onChange={(val) => setData((prev) => ({ ...prev, PAGE_COUNT: val }))} />
+                    </div>
+                </Col>
+                <Col span={8}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Loại tài liệu")}
+                        <Select
+                            style={{ width: "100%", marginTop: 6 }}
+                            value={data.CATEGORY || "single"}
+                            onChange={(value) => setData((prev) => ({ ...prev, CATEGORY: value }))}
+                            options={[{ value: "single", label: "Tài liệu lẻ" }, { value: "bundle", label: "Tài liệu bộ" }]}
+                        />
+                    </div>
+                </Col>
+                <Col span={8}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Định dạng file")}
+                        <Select
+                            style={{ width: "100%", marginTop: 6 }}
+                            value={data.FILE_TYPE || null}
+                            placeholder="-- Chọn --"
+                            allowClear
+                            onChange={(value) => setData((prev) => ({ ...prev, FILE_TYPE: value || null }))}
+                            options={[
+                                { value: "doc", label: "Word (.doc)" }, { value: "docx", label: "Word (.docx)" },
+                                { value: "pdf", label: "PDF (.pdf)" }, { value: "xlsx", label: "Excel (.xlsx)" },
+                                { value: "xls", label: "Excel (.xls)" }, { value: "ppt", label: "PowerPoint (.ppt)" },
+                                { value: "pptx", label: "PowerPoint (.pptx)" }, { value: "rar", label: "RAR (.rar)" },
+                                { value: "zip", label: "ZIP (.zip)" },
+                            ]}
+                        />
+                    </div>
+                </Col>
+            </Row>
+
+            {/* Nội dung */}
+            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280" }}>Nội dung</Divider>
+            <Row gutter={16}>
+                <Col span={12}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Danh sách email")}
+                        <TextArea style={{ marginTop: 6 }} rows={3} placeholder="Nhập email ngăn cách nhau dấu ," value={data.EMAILS || ""} onChange={(e) => setData((prev) => ({ ...prev, EMAILS: e.target.value }))} />
+                    </div>
+                </Col>
+                <Col span={12}>
+                    <div style={{ marginBottom: 16 }}>
+                        {fieldLabel("Chủ đề")}
+                        <div style={{ marginTop: 6 }}>
                             <DebounceSelect
                                 key={data}
                                 mode="multiple"
                                 initialValues={data.TOPIC_IDS}
                                 size="large"
-                                placeholder=" -- Chọn chủ đề -- "
+                                placeholder="-- Chọn chủ đề --"
                                 fetchOptions={GetTopics}
-                                onChange={(value) => {
-                                    setData((prev) => ({
-                                        ...prev,
-                                        TOPIC_IDS: value === "" ? null : value.map((x) => x.value)?.join(","),
-                                    }));
-                                }}
+                                onChange={(value) => setData((prev) => ({ ...prev, TOPIC_IDS: value === "" ? null : value.map((x) => x.value)?.join(",") }))}
                                 style={{ width: "100%" }}
                             />
                         </div>
                     </div>
+                </Col>
+            </Row>
 
-                    {/* Mô tả */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <label>Mô tả</label>
-                            <ReactQuill
-                                theme="snow"
-                                value={quill}
-                                onChange={(e) => setQuill(e)}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Tạo blog */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline mb-0">
-                            <Checkbox
-                                checked={createBlog}
-                                onChange={(e) => setCreateBlog(e.target.checked)}
-                            >
-                                Tạo blog
-                            </Checkbox>
-                        </div>
-                    </div>
-
-                    {/* Trạng thái */}
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="form-outline mb-0">
-                            <label className="d-block mb-2">Trạng thái</label>
-                            <Radio.Group value={status} onChange={(e) => setStatus(e.target.value)}>
-                                <Radio value="published">Đang phát hành</Radio>
-                                <Radio value="folder">Thư mục</Radio>
-                                <Radio value="featured">Nổi bật</Radio>
-                                <Radio value="hidden">Ẩn khỏi trang</Radio>
-                            </Radio.Group>
-                        </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="col-md-10 col-lg-6 col-xl-6 order-2 order-lg-1">
-                        <div className="d-flex justify-content-center mx-4 mb-3 mb-lg-4">
-                            <button
-                                type="button"
-                                className={`btn btn-success btn-md ${styles.m3}`}
-                                onClick={onSave}
-                            >
-                                Lưu
-                            </button>
-                            <button
-                                type="button"
-                                className={`btn btn-primary btn-md ${styles.m3}`}
-                                onClick={onClose}
-                            >
-                                Đóng
-                            </button>
-                        </div>
-                    </div>
+            <div style={{ marginBottom: 16 }}>
+                {fieldLabel("Ảnh")}
+                <div style={{ marginTop: 6, display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <Upload
+                        customRequest={uploadFile}
+                        listType="picture-card"
+                        fileList={fileImage}
+                        accept="image/*"
+                        multiple={false}
+                        onChange={({ fileList: newFileList }) => {
+                            setFileImage(newFileList);
+                            const done = newFileList.filter((x) => x.status === "done");
+                            if (done.length > 0) setData((prev) => ({ ...prev, IMAGE_LINK: done[0].response.FilePath }));
+                        }}
+                    >
+                        {fileImage.length > 0 ? null : <button style={{ border: 0, background: "none" }} type="button"><PlusOutlined /></button>}
+                    </Upload>
+                    <Button style={{ marginTop: 4 }} onClick={() => setIsImageModalVisible(true)}>Chọn ảnh có sẵn</Button>
                 </div>
             </div>
+
+            <div style={{ marginBottom: 16 }}>
+                {fieldLabel("Mô tả")}
+                <div style={{ marginTop: 6 }}>
+                    <ReactQuill theme="snow" value={quill} onChange={(e) => setQuill(e)} />
+                </div>
+            </div>
+
+            {/* Cài đặt */}
+            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280" }}>Cài đặt</Divider>
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+                <Col flex="auto">
+                    {fieldLabel("Trạng thái")}
+                    <div style={{ marginTop: 8 }}>
+                        <Radio.Group value={status} onChange={(e) => setStatus(e.target.value)} optionType="button" buttonStyle="solid">
+                            <Radio.Button value="published">Đang phát hành</Radio.Button>
+                            <Radio.Button value="folder">Thư mục</Radio.Button>
+                            <Radio.Button value="featured">Nổi bật</Radio.Button>
+                            <Radio.Button value="hidden">Ẩn khỏi trang</Radio.Button>
+                        </Radio.Group>
+                    </div>
+                </Col>
+                <Col>
+                    <Checkbox checked={createBlog} onChange={(e) => setCreateBlog(e.target.checked)} style={{ marginTop: 24 }}>
+                        Tạo blog
+                    </Checkbox>
+                </Col>
+            </Row>
         </Modal>
+
+        <Modal title="Ảnh đang có" open={isImageModalVisible} footer={null} onCancel={() => setIsImageModalVisible(false)}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {existingImages.map((image) => (
+                    <Image key={image} width={100} src={`${process.env.NEXT_PUBLIC_API_URL}${image}`} preview={false}
+                        onClick={() => handleSelectImage(image)}
+                        style={{ cursor: "pointer", border: data.IMAGE_LINK === image ? "2px solid #1890ff" : "1px solid #d9d9d9" }}
+                    />
+                ))}
+            </div>
+        </Modal>
+        </>
     );
 };
 

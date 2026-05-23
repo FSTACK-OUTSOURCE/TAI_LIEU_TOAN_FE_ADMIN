@@ -26,6 +26,7 @@ export default function Document() {
     const [selectedRows, setSelectedRows] = useState([]);
     const [showPopup, setShowPopup] = useState(false);
     const [showQuickCreate, setShowQuickCreate] = useState(false);
+    const [quickCreateDocumentId, setQuickCreateDocumentId] = useState(null);
     const [documentId, setDocumentId] = useState(null);
     const [topics, setTopics] = useState([]);
     const [filter, setFilter] = useState({ NAME: '', TOPIC_IDS: '', CREATED_DATE_FROM: null, CREATED_DATE_TO: null });
@@ -198,8 +199,13 @@ export default function Document() {
             render: (text, record) => (
                 <Radio.Group value={size} onChange={(e) => setSize(e.target.value)}>
                     <Radio.Button onClick={() => {
-                        setShowPopup(true)
-                        setDocumentId(record.DOCUMENT_ID)
+                        if (!record.IS_FOLDER) {
+                            setQuickCreateDocumentId(record.DOCUMENT_ID);
+                            setShowQuickCreate(true);
+                        } else {
+                            setShowPopup(true);
+                            setDocumentId(record.DOCUMENT_ID);
+                        }
                     }} value={record.DOCUMENT_ID}>Sửa</Radio.Button>
                     {/* <Radio.Button onClick={() => showDeleteConfirm(record.DOCUMENT_ID)} value="Xoá">Xoá</Radio.Button> */}
                 </Radio.Group>
@@ -365,12 +371,12 @@ export default function Document() {
                         Tạo nhanh thư mục
                     </Button>
                     <Button className={`${styles.buttonFeature}`} type="primary" shape="round" icon={<PlusOutlined />} size={size} onClick={() => setShowQuickCreate(true)}>
-                        Tạo tài liệu tự động
+                        Tạo nhanh tài liệu con
                     </Button>
                 </div>
             </div>
             {showPopup && <DetailDocument onClose={() => { togglePopup(parentDocumentId) }} documentId={documentId} parentDocumentId={parentDocumentId} />}
-            {showQuickCreate && <QuickCreateDocument onClose={() => { setShowQuickCreate(false); getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: pagination.current, PageSize: pagination.pageSize }); }} parentDocumentId={parentDocumentId} />}
+            {showQuickCreate && <QuickCreateDocument onClose={() => { setShowQuickCreate(false); setQuickCreateDocumentId(null); getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: pagination.current, PageSize: pagination.pageSize }); }} parentDocumentId={parentDocumentId} documentId={quickCreateDocumentId} />}
             <div className={`col-md-12 ${styles.contentRight}`}>
                 <Breadcrumb
                     items={breadData}
