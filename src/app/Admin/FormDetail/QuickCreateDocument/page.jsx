@@ -61,7 +61,8 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         const res = await getDocumentInfo({ DOCUMENT_ID: docId, Columns: "EMAILS" });
         if (res.success && res.Items?.length > 0) {
             const doc = res.Items[0];
-            setData(doc);
+            const extWithDot = doc.FILE_EXTENSION?.toLowerCase() || "";
+            setData({ ...doc, FILE_TYPE: doc.FILE_TYPE || FILE_TYPE_MAP[extWithDot] || null });
             setQuill(doc.DESCRIPTION || "");
             if (doc.IS_FOLDER) setStatus("folder");
             else if (doc.IS_HIDDEN) setStatus("hidden");
@@ -75,6 +76,19 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             }
             if (doc.PDF_KEY) {
                 setFilePdf([{ uid: doc.PDF_KEY, id: doc.PDF_KEY, name: `${doc.NAME}${doc.PDF_EXTENSION || ""}`, status: "done" }]);
+            }
+            const parentId = doc.PARENT_DOCUMENT_ID;
+            if ((!doc.GRADE || !doc.SUBJECT) && parentId && parentId !== guidEmpty) {
+                getDocumentInfo({ DOCUMENT_ID: parentId, Columns: "*" }, false).then((parentRes) => {
+                    if (parentRes.success && parentRes.Items?.length > 0) {
+                        const parent = parentRes.Items[0];
+                        setData((prev) => ({
+                            ...prev,
+                            GRADE: prev.GRADE || parent.GRADE || undefined,
+                            SUBJECT: prev.SUBJECT || parent.SUBJECT || undefined,
+                        }));
+                    }
+                });
             }
         }
     };
@@ -114,7 +128,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             setData((prev) => ({
                 ...prev,
                 NAME: nameWithoutExt,
-                FILE_TYPE: prev.FILE_TYPE || FILE_TYPE_MAP[ext] || null,
+                FILE_TYPE: FILE_TYPE_MAP[ext] || prev.FILE_TYPE || null,
             }));
         }
     };
@@ -183,11 +197,17 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                 const userId = getUserIdFromToken();
                 if (userId) webhookFormData.append("USER_ID", userId);
                 const pdfFile = fileUploadPdf?.originFileObj ?? fileUploadPdf;
+                const isCreateBlog = createBlog && response.IMAGE_LINK && userId && pdfFile && response.NAME_SLUG;
                 webhookFormData.append("DOCUMENT_PDF", response?.LINK_PREVIEW ? response?.LINK_PREVIEW : pdfFile || "");
-                webhookFormData.append("DOCUMENT_ID", response.DOCUMENT_ID);
-                webhookFormData.append("DOCUMENT_TITLE", response.NAME ?? "");
-                webhookFormData.append("IS_CREATE_BLOG", createBlog && response.IMAGE_LINK && userId && pdfFile);
+                webhookFormData.append("DOCUMENT_ID", response?.DOCUMENT_ID || "");
+                webhookFormData.append("DOCUMENT_TITLE", response?.NAME || "");
                 webhookFormData.append("THUMBNAIL_URL", response.IMAGE_LINK || "");
+                webhookFormData.append("IS_CREATE_BLOG", isCreateBlog);
+                webhookFormData.append("THUMBNAIL_URL", response.IMAGE_LINK || "");
+                webhookFormData.append("IS_CREATE_NEW", Boolean(documentId));
+                if(isCreateBlog){
+                    webhookFormData.append("DOCUMENT_URL", `https://tailieutoan.vn/${response?.NAME_SLUG || ""}`);
+                }
 
                 await fetch(process.env.NEXT_PUBLIC_N8N_QUICK_DOCUMENT_CHILD, {
                     method: "POST",
