@@ -223,8 +223,10 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                 const userId = getUserIdFromToken();
                 if (userId) webhookFormData.append("USER_ID", userId);
                 const pdfFile = fileUploadPdf?.originFileObj ?? fileUploadPdf;
-                const isCreateBlog = createBlog && response.IMAGE_LINK && userId && pdfFile && response.NAME_SLUG;
-                webhookFormData.append("DOCUMENT_PDF", response?.LINK_PREVIEW ? response?.LINK_PREVIEW : pdfFile || "");
+                const linkPreview = response?.LINK_PREVIEW || "";
+                const isCreateBlog = createBlog && response.IMAGE_LINK && userId && (pdfFile || linkPreview) && response.NAME_SLUG;
+                if (pdfFile) webhookFormData.append("DOCUMENT_PDF", pdfFile);
+                if (linkPreview) webhookFormData.append("LINK_PREVIEW", linkPreview);
                 webhookFormData.append("DOCUMENT_ID", response?.DOCUMENT_ID || "");
                 webhookFormData.append("DOCUMENT_TITLE", response?.NAME || "");
                 webhookFormData.append("IS_CREATE_BLOG", isCreateBlog ? "true" : "false");

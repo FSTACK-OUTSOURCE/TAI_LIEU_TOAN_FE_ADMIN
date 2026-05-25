@@ -632,6 +632,41 @@
   font-weight: 600;
 }
 
+.bulkUploadBox {
+  margin: 18px 0 14px;
+}
+
+.bulkUploadBox :global(.ant-upload-drag) {
+  border-radius: 8px !important;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+}
+
+.bulkToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bulkFileName {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.bulkReplaceButton {
+  margin-top: 6px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
 @media (max-width: 900px) {
   .documentForm :global(.d-flex:has(.form-outline > .ant-checkbox-wrapper)) {
     width: calc(50% - 12px);

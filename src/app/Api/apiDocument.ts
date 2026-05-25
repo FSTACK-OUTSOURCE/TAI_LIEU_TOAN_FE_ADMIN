@@ -1,11 +1,11 @@
 import { callRestApi } from './index'
 
 
-export const postDocumentInfo = async (formData: any): Promise<any> => {
+export const postDocumentInfo = async (formData: any, loading: any = true, message: any = `Lưu thành công`): Promise<any> => {
   var headers = {
     'Content-Type': 'multipart/form-data'
   }
-  return await callRestApi({ method: 'POST', endpoint: '/api/document/save', headers, data: formData, message: `Lưu thành công` })
+  return await callRestApi({ method: 'POST', endpoint: '/api/document/save', headers, data: formData, message, loading })
 };
 
 export const getDocumentInfo = async (queryParams?: Record<string, any>, loading?: any): Promise<any> => {
