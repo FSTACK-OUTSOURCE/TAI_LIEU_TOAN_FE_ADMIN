@@ -7,10 +7,11 @@ import { DebounceSelect } from "@/app/Component/DebounceSelect";
 import { ReactQuill } from "@/app/Component/TextEditor";
 import { guidEmpty } from "@/app/constans";
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Checkbox, Col, Divider, Image, Input, InputNumber, Modal, Radio, Row, Select, Upload } from "antd";
+import { Button, Checkbox, Col, Divider, Image, Input, InputNumber, Modal, Progress, Radio, Row, Select, Upload, notification } from "antd";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useEffect, useState } from "react";
+import styles from "../../../page.module.css";
 const { TextArea } = Input;
 
 const FILE_TYPE_MAP = {
@@ -179,8 +180,25 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         setIsImageModalVisible(false);
     };
 
+    const showJobProgress = (key, percent, description, status = "active", duration = 0) => {
+        notification.open({
+            key,
+            message: "Tạo tài liệu tự động",
+            description: (
+                <div>
+                    <div style={{ marginBottom: 8 }}>{description}</div>
+                    <Progress percent={percent} status={status} size="small" />
+                </div>
+            ),
+            duration,
+            placement: "bottomRight",
+        });
+    };
+
     const onSave = async () => {
         setLoading(true);
+        const jobKey = `quick-document-${Date.now()}`;
+        showJobProgress(jobKey, 10, "Đang lưu tài liệu...");
         const formData = new FormData();
         if (file) formData.append("FILE", file);
         if (fileUploadPdf) formData.append("FILE_PDF", fileUploadPdf);
@@ -198,6 +216,8 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
 
         const response = await postDocumentInfo(formData);
         if (response?.DOCUMENT_ID && (!documentId || createBlog)) {
+            showJobProgress(jobKey, 40, "Đã lưu tài liệu. Đang chuẩn bị gửi sang hệ thống tự động...");
+            onClose();
             try {
                 const webhookFormData = new FormData();
                 const userId = getUserIdFromToken();
@@ -214,40 +234,54 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                     webhookFormData.append("DOCUMENT_URL", `https://tailieutoan.vn/${response?.NAME_SLUG || ""}-${response?.IDENTITY_KEY || ""}`);
                 }
 
-                await fetch(process.env.NEXT_PUBLIC_N8N_QUICK_DOCUMENT_CHILD, {
+                showJobProgress(jobKey, 70, "Đang tạo tài liệu tự động trong nền. Bạn có thể tiếp tục làm việc khác.");
+                const webhookResponse = await fetch(process.env.NEXT_PUBLIC_N8N_QUICK_DOCUMENT_CHILD, {
                     method: "POST",
                     body: webhookFormData,
                 });
+                if (!webhookResponse.ok) {
+                    throw new Error(`Webhook failed with status ${webhookResponse.status}`);
+                }
+                showJobProgress(jobKey, 100, "Hoàn tất gửi yêu cầu tạo tài liệu tự động.", "success", 4);
             } catch(error) {
                 console.warn("Webhook call failed:", error);
+                showJobProgress(jobKey, 100, "Tài liệu đã lưu, nhưng gửi yêu cầu tạo tự động thất bại. Vui lòng thử lại hoặc kiểm tra n8n.", "exception", 0);
             }
-            onClose();
         } else {
+            notification.success({
+                message: "Tạo tài liệu tự động",
+                description: "Đã lưu tài liệu thành công.",
+                placement: "bottomRight",
+            });
             setLoading(false);
+            onClose();
         }
     };
 
     const fieldLabel = (text) => (
-        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{text}</span>
+        <span className={styles.quickFieldLabel}>{text}</span>
     );
 
     return (
         <>
         <Modal
             open={true}
-            title={<span style={{ fontSize: 16, fontWeight: 600 }}>{documentId ? "Cập nhật tài liệu" : "Tạo tài liệu tự động"}</span>}
+            title={documentId ? "Cập nhật tài liệu tự động" : "Tạo tài liệu tự động"}
             onCancel={onClose}
-            width={960}
-            styles={{ body: { maxHeight: "76vh", overflowY: "auto", padding: "8px 24px 0" } }}
+            width={1120}
+            centered
+            className={styles.documentDetailModal}
+            styles={{ body: { maxHeight: "calc(100vh - 190px)", overflowY: "auto" } }}
             footer={
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <div className={styles.quickFooter}>
                     <Button onClick={onClose} disabled={loading}>Đóng</Button>
                     <Button type="primary" loading={loading} onClick={onSave}>Lưu</Button>
                 </div>
             }
         >
+            <div className={`${styles.documentForm} ${styles.quickCreateForm}`}>
             {/* Upload files */}
-            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>Tài liệu</Divider>
+            <Divider orientation="left" orientationMargin={0}>Tài liệu nguồn</Divider>
             <Row gutter={16}>
                 <Col span={12}>
                     <div style={{ marginBottom: 16 }}>
@@ -282,7 +316,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             </div>
 
             {/* Thông tin cơ bản */}
-            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280" }}>Thông tin</Divider>
+            <Divider orientation="left" orientationMargin={0}>Thông tin</Divider>
             <Row gutter={16}>
                 <Col span={8}>
                     <div style={{ marginBottom: 16 }}>
@@ -351,7 +385,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             </Row>
 
             {/* Nội dung */}
-            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280" }}>Nội dung</Divider>
+            <Divider orientation="left" orientationMargin={0}>Nội dung</Divider>
             <Row gutter={16}>
                 <Col span={12}>
                     <div style={{ marginBottom: 16 }}>
@@ -407,7 +441,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             </div>
 
             {/* Cài đặt */}
-            <Divider orientation="left" orientationMargin={0} style={{ fontSize: 13, color: "#6b7280" }}>Cài đặt</Divider>
+            <Divider orientation="left" orientationMargin={0}>Cài đặt</Divider>
             <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
                 <Col flex="auto">
                     {fieldLabel("Trạng thái")}
@@ -426,6 +460,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                     </Checkbox>
                 </Col>
             </Row>
+            </div>
         </Modal>
 
         <Modal title="Ảnh đang có" open={isImageModalVisible} footer={null} onCancel={() => setIsImageModalVisible(false)}>

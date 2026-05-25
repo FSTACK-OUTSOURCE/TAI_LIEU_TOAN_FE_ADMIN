@@ -543,6 +543,95 @@
   font-size: 13px;
 }
 
+.quickFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.quickCreateForm {
+  padding-bottom: 8px;
+}
+
+.quickCreateForm :global(.ant-divider) {
+  margin: 18px 0 14px;
+  border-color: #e5eaf2;
+}
+
+.quickCreateForm :global(.ant-divider-inner-text) {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quickCreateForm :global(.ant-row) {
+  row-gap: 0;
+}
+
+.quickCreateForm :global(.ant-input),
+.quickCreateForm :global(.ant-input-number),
+.quickCreateForm :global(.ant-select-selector) {
+  border-radius: 6px !important;
+  border-color: #d9e0ea !important;
+  box-shadow: none !important;
+}
+
+.quickCreateForm :global(.ant-input),
+.quickCreateForm :global(.ant-input-number),
+.quickCreateForm :global(.ant-select-selector) {
+  min-height: 40px;
+}
+
+.quickCreateForm :global(.ant-input-number-input) {
+  min-height: 38px;
+}
+
+.quickCreateForm :global(.ant-upload-wrapper) {
+  display: block;
+  padding: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.quickCreateForm :global(.ant-upload-list) {
+  margin-top: 8px;
+}
+
+.quickCreateForm :global(.ql-toolbar) {
+  background: #ffffff;
+  border-radius: 8px 8px 0 0;
+}
+
+.quickCreateForm :global(.ql-container) {
+  min-height: 220px;
+  background: #ffffff;
+  border-radius: 0 0 8px 8px;
+}
+
+.quickCreateForm :global(.ant-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.quickCreateForm :global(.ant-radio-button-wrapper) {
+  min-width: 112px;
+  text-align: center;
+}
+
+.quickCreateForm :global(.ant-checkbox-wrapper) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.quickFieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .documentForm :global(.d-flex:has(.form-outline > .ant-checkbox-wrapper)) {
     width: calc(50% - 12px);
