@@ -272,7 +272,21 @@ export default function Document() {
         }
     };
 
-    const handleDoubleClick = (documentId) => {
+    const hasChildDocuments = async (documentId) => {
+        const response = await getDocumentInfo({
+            PARENT_DOCUMENT_ID: documentId,
+            Columns: 'DOCUMENT_ID',
+            CurrentPage: 1,
+            PageSize: 1,
+        }, false);
+
+        return response.success && (response.TotalCount > 0 || response.Items?.length > 0);
+    };
+
+    const handleDoubleClick = async (documentId, checkChildren = false) => {
+        if (checkChildren && !(await hasChildDocuments(documentId))) {
+            return;
+        }
 
         router.push(`/Admin/Document?parentDocumentId=${documentId}`, { scroll: false })
 
@@ -391,7 +405,7 @@ export default function Document() {
                         return {
                             onDoubleClick: (event) => {
                                 if (record.IS_FOLDER) {
-                                    handleDoubleClick(record.DOCUMENT_ID)
+                                    handleDoubleClick(record.DOCUMENT_ID, true)
                                 }
                             }, // double click row
                         };

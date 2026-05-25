@@ -1,7 +1,6 @@
 "use client";
 import { getClientSideCookie } from "@/app/Api";
 import {
-    getChangeParentDocument,
     getDocumentInfo,
     postDocumentDownFile,
     postDocumentInfo,
@@ -47,6 +46,21 @@ const DetailDocument = (props) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [createBlog, setCreateBlog] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
+
+    const toDocumentOption = (document) => ({
+        value: document.DOCUMENT_ID,
+        label: document.IDENTITY_KEY
+            ? `${document.NAME} - ${document.IDENTITY_KEY}`
+            : document.NAME,
+    });
+
+    const mergeOptions = (currentOptions, newOptions) => {
+        const map = new Map();
+        [...(currentOptions || []), ...(newOptions || [])].forEach((option) => {
+            if (option?.value) map.set(option.value, option);
+        });
+        return Array.from(map.values());
+    };
 
     const getUserIdFromToken = () => {
         try {
@@ -197,8 +211,34 @@ const DetailDocument = (props) => {
                 }
             }
         } else {
-            // await initOptions({ search: null, parentDocumentId: null })
+            await initCurrentParent();
+        }
+    };
+
+    const initCurrentParent = async () => {
+        if (!parentDocumentId || parentDocumentId === guidEmpty) {
             setData({});
+            await initOptions({});
+            return;
+        }
+
+        const response = await getDocumentInfo(
+            { DOCUMENT_ID: parentDocumentId, Columns: "*" },
+            false,
+        );
+        if (response.success && response.Items?.length > 0) {
+            const parent = response.Items[0];
+            const parentOption = toDocumentOption(parent);
+            setData((prev) => ({
+                ...prev,
+                PARENT_DOCUMENT_ID: parent.DOCUMENT_ID,
+                GRADE: prev.GRADE || parent.GRADE || undefined,
+                SUBJECT: prev.SUBJECT || parent.SUBJECT || undefined,
+            }));
+            await initOptions({ selectedOption: parentOption });
+        } else {
+            setData({});
+            await initOptions({});
         }
     };
 
@@ -220,7 +260,11 @@ const DetailDocument = (props) => {
                 formData.append(key, saveData[key]);
             }
         });
-        if (parentDocumentId != guidEmpty && parentDocumentId != null) {
+        if (
+            !saveData.PARENT_DOCUMENT_ID &&
+            parentDocumentId != guidEmpty &&
+            parentDocumentId != null
+        ) {
             formData.append("PARENT_DOCUMENT_ID", parentDocumentId);
         }
 
@@ -338,7 +382,7 @@ const DetailDocument = (props) => {
     useEffect(() => {
         GetData(documentId);
         GetExistImages();
-    }, [documentId]);
+    }, [documentId, parentDocumentId]);
 
     const handleFileDownload = async (file) => {
         if (file.url) {
@@ -356,30 +400,32 @@ const DetailDocument = (props) => {
             await deleteFile(file.id);
         }
     };
-    const initOptions = async (props) => {
-        const { search, DOCUMENT_ID, PARENT_DOCUMENT_ID } = props;
+    const initOptions = async (props = {}) => {
+        const { search, DOCUMENT_ID, selectedOption } = props;
+        const keyword = search?.trim();
         const queryParams = {
-            IDENTITY_KEY: search,
-            DOCUMENT_ID,
-            PARENT_DOCUMENT_ID,
+            ...(keyword
+                ? isNaN(keyword)
+                    ? { NAME: keyword }
+                    : { IDENTITY_KEY: keyword }
+                : {}),
             Columns: "*",
+            IS_FOLDER: true,
             CurrentPage: 1,
-            PageSize: 10,
+            PageSize: 10000,
         };
-        var response = await getChangeParentDocument(queryParams);
-        setOptions(
-            response.Data.map((x) => ({
-                value: x.DOCUMENT_ID,
-                label: x.NAME,
-            })),
+        var response = await getDocumentInfo(queryParams, false);
+        const apiOptions = (response.Items || [])
+            .filter((x) => x.DOCUMENT_ID !== DOCUMENT_ID)
+            .map(toDocumentOption);
+        setOptions((prev) =>
+            mergeOptions(selectedOption ? [selectedOption] : prev, apiOptions),
         );
     };
     const fetchOptions = async (search) => {
-        if (!search) return;
-        if (isNaN(search)) return;
-        initOptions({ search, DOCUMENT_ID: data?.DOCUMENT_ID });
         setLoading(true);
         try {
+            await initOptions({ search, DOCUMENT_ID: data?.DOCUMENT_ID });
         } catch (error) {
             console.error("Error fetching options:", error);
         } finally {
@@ -431,7 +477,10 @@ const DetailDocument = (props) => {
                                             PARENT_DOCUMENT_ID: value,
                                         });
                                     }}
-                                    onSearch={setSearchTerm}
+                                    onSearch={(value) => {
+                                        setSearchTerm(value);
+                                        fetchOptions(value);
+                                    }}
                                     options={(options || []).map((d) => ({
                                         value: d.value,
                                         label: d.label,
