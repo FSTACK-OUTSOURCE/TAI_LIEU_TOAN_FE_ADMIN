@@ -14,6 +14,7 @@ import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import {
     Button,
     Checkbox,
+    Collapse,
     Image,
     Input,
     Modal,
@@ -61,6 +62,27 @@ const DetailDocument = (props) => {
         });
         return Array.from(map.values());
     };
+
+    const getPreviewUrl = (url) => {
+        if (!url) return "";
+        const trimmedUrl = url.trim();
+        if (!trimmedUrl) return "";
+
+        if (trimmedUrl.includes("drive.google.com/file/d/")) {
+            return trimmedUrl.replace(/\/view.*$/, "/preview");
+        }
+
+        return trimmedUrl;
+    };
+
+    const isImagePreview = (url) =>
+        /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
+
+    const isEmbedPreview = (url) =>
+        /\.(pdf)(\?.*)?$/i.test(url) ||
+        url.includes("drive.google.com") ||
+        url.includes("docs.google.com") ||
+        url.includes("res.cloudinary.com");
 
     const getUserIdFromToken = () => {
         try {
@@ -442,14 +464,26 @@ const DetailDocument = (props) => {
         <>
         <Modal
             open={true}
-            footer={null}
-            closable={false}
-            // style={{ overflowY: 'auto', width: '1000' }}
-            width={1000}
+            title={data?.DOCUMENT_ID ? "Cập nhật tài liệu" : "Thêm mới tài liệu"}
+            onCancel={onClose}
+            width={1120}
+            centered
+            className={styles.documentDetailModal}
+            styles={{
+                body: { maxHeight: "calc(100vh - 190px)", overflowY: "auto" },
+            }}
+            footer={[
+                <Button key="close" onClick={onClose}>
+                    Đóng
+                </Button>,
+                <Button key="save" type="primary" onClick={onSave}>
+                    Lưu
+                </Button>,
+            ]}
         >
-            <div className="col-lg-12 col-xl-12">
+            <div className={`col-lg-12 col-xl-12 ${styles.documentForm}`}>
                 <div className="row justify-content-center">
-                    <p className="text-center h5 pt-3 pb-3 fw-bold mb-3 mx-1 mx-md-4">
+                    <p className="d-none">
                         {data?.DOCUMENT_ID
                             ? "Cập nhật tài liệu"
                             : "Thêm mới tài liệu"}
@@ -500,31 +534,6 @@ const DetailDocument = (props) => {
                                 value={data?.NAME}
                                 onChange={(e) => {
                                     onChange({ ...data, NAME: e.target.value });
-                                }}
-                            />
-                        </div>
-                    </div>
-                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
-                        <div className="form-outline flex-fill mb-0">
-                            <div className="d-flex align-items-center gap-2 mb-1">
-                                <label className="mb-0">Link xem trước</label>
-                                <Button
-                                    size="small"
-                                    onClick={() => setShowUploadModal(true)}
-                                >
-                                    Lấy link xem trước
-                                </Button>
-                            </div>
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Nhập link xem trước"
-                                value={data?.LINK_PREVIEW}
-                                onChange={(e) => {
-                                    onChange({
-                                        ...data,
-                                        LINK_PREVIEW: e.target.value,
-                                    });
                                 }}
                             />
                         </div>
@@ -654,9 +663,9 @@ const DetailDocument = (props) => {
                             />
                         </div>
                     </div>
-                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
+                    <div className="col-md-6 col-lg-6 col-xl-6 order-2 order-lg-1 mb-4">
                         <div className="row">
-                            <div className="col-md-6 col-lg-6 col-xl-6">
+                            <div className="col-md-12 col-lg-12 col-xl-12">
                                 <div className="form-outline flex-fill mb-0">
                                     <label>Định dạng file</label>
                                     <Select
@@ -752,6 +761,64 @@ const DetailDocument = (props) => {
                                         Chọn tài liệu pdf
                                     </Button>
                                 </Upload>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1">
+                        <div className="d-flex flex-row align-items-center mb-4">
+                            <div className="form-outline flex-fill mb-0">
+                                <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                    <label className="mb-0">Link xem trước</label>
+                                    <Button
+                                        size="small"
+                                        onClick={() => setShowUploadModal(true)}
+                                    >
+                                        Lấy link xem trước
+                                    </Button>
+                                </div>
+                                <Input
+                                    placeholder="Nhập link xem trước"
+                                    value={data?.LINK_PREVIEW}
+                                    onChange={(e) => {
+                                        onChange({
+                                            ...data,
+                                            LINK_PREVIEW: e.target.value,
+                                        });
+                                    }}
+                                />
+                                {data?.LINK_PREVIEW?.trim() ? (
+                                    <Collapse
+                                        className={styles.previewCollapse}
+                                        defaultActiveKey={["preview"]}
+                                        items={[
+                                            {
+                                                key: "preview",
+                                                label: "Xem trước",
+                                                children: (
+                                                    <div className={styles.previewBox}>
+                                                        {isImagePreview(getPreviewUrl(data.LINK_PREVIEW)) ? (
+                                                            <img
+                                                                src={getPreviewUrl(data.LINK_PREVIEW)}
+                                                                alt="Preview"
+                                                                className={styles.previewImage}
+                                                            />
+                                                        ) : isEmbedPreview(getPreviewUrl(data.LINK_PREVIEW)) ? (
+                                                            <iframe
+                                                                src={getPreviewUrl(data.LINK_PREVIEW)}
+                                                                title="Preview"
+                                                                className={styles.previewFrame}
+                                                            />
+                                                        ) : (
+                                                            <div className={styles.previewFallback}>
+                                                                Link này không hỗ trợ xem trước trực tiếp.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ),
+                                            },
+                                        ]}
+                                    />
+                                ) : null}
                             </div>
                         </div>
                     </div>
@@ -979,7 +1046,7 @@ const DetailDocument = (props) => {
                             </Checkbox>
                         </div>
                     </div>
-                    <div className="col-md-10 col-lg-6 col-xl-6 order-2 order-lg-1">
+                    <div className="d-none">
                         <div className="d-flex justify-content-center mx-4 mb-3 mb-lg-4">
                             <button
                                 type="button"
