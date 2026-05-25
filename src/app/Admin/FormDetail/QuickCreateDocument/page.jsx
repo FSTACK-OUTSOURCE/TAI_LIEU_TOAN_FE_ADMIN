@@ -215,17 +215,17 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         }
 
         const response = await postDocumentInfo(formData);
-        if (response?.DOCUMENT_ID && (!documentId || createBlog)) {
+        const pdfFile = fileUploadPdf?.originFileObj ?? fileUploadPdf;
+        if (response?.DOCUMENT_ID && pdfFile && (!documentId || createBlog)) {
             showJobProgress(jobKey, 40, "Đã lưu tài liệu. Đang chuẩn bị gửi sang hệ thống tự động...");
             onClose();
             try {
                 const webhookFormData = new FormData();
                 const userId = getUserIdFromToken();
                 if (userId) webhookFormData.append("USER_ID", userId);
-                const pdfFile = fileUploadPdf?.originFileObj ?? fileUploadPdf;
                 const linkPreview = response?.LINK_PREVIEW || "";
-                const isCreateBlog = createBlog && response.IMAGE_LINK && userId && (pdfFile || linkPreview) && response.NAME_SLUG;
-                if (pdfFile) webhookFormData.append("DOCUMENT_PDF", pdfFile);
+                const isCreateBlog = createBlog && response.IMAGE_LINK && userId && pdfFile && response.NAME_SLUG;
+                webhookFormData.append("DOCUMENT_PDF", pdfFile);
                 if (linkPreview) webhookFormData.append("LINK_PREVIEW", linkPreview);
                 webhookFormData.append("DOCUMENT_ID", response?.DOCUMENT_ID || "");
                 webhookFormData.append("DOCUMENT_TITLE", response?.NAME || "");

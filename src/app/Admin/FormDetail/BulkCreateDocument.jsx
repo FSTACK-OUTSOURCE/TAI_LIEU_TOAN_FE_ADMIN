@@ -316,13 +316,15 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
     };
 
     const callAutomation = async (documentResponse, row, isCreateBlog) => {
+        const pdfFile = row.usePreview ? row.pdfFile : null;
+        if (!pdfFile) return;
+
         const webhookFormData = new FormData();
         const userId = getUserIdFromToken();
         if (userId) webhookFormData.append("USER_ID", userId);
 
-        const pdfFile = row.usePreview ? row.pdfFile : null;
         const linkPreview = documentResponse?.LINK_PREVIEW || "";
-        if (pdfFile) webhookFormData.append("DOCUMENT_PDF", pdfFile);
+        webhookFormData.append("DOCUMENT_PDF", pdfFile);
         if (linkPreview) webhookFormData.append("LINK_PREVIEW", linkPreview);
         webhookFormData.append("DOCUMENT_ID", documentResponse?.DOCUMENT_ID || "");
         webhookFormData.append("DOCUMENT_TITLE", documentResponse?.NAME || row.name || "");
@@ -364,6 +366,7 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
 
         let successCount = 0;
         let failCount = 0;
+        let skippedAutomationCount = 0;
 
         for (let index = 0; index < validRows.length; index += 1) {
             const row = validRows[index];
@@ -402,8 +405,12 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                     throw new Error("Save document failed");
                 }
 
-                showBulkProgress(jobKey, basePercent + 3, `Đã lưu ${row.name}. Đang gửi n8n xử lý nền...`);
-                await callAutomation(response, row, createBlog);
+                if (row.usePreview && row.pdfFile) {
+                    showBulkProgress(jobKey, basePercent + 3, `Đã lưu ${row.name}. Đang gửi n8n xử lý nền...`);
+                    await callAutomation(response, row, createBlog);
+                } else {
+                    skippedAutomationCount += 1;
+                }
                 successCount += 1;
             } catch (error) {
                 failCount += 1;
@@ -415,7 +422,7 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         showBulkProgress(
             jobKey,
             100,
-            `Hoàn tất: ${successCount} thành công, ${failCount} lỗi.`,
+            `Hoàn tất: ${successCount} thành công, ${failCount} lỗi${skippedAutomationCount ? `, ${skippedAutomationCount} không gửi n8n vì chưa có file preview` : ""}.`,
             doneStatus,
             failCount > 0 ? 0 : 5,
         );
