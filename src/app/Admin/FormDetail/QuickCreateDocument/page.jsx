@@ -6,8 +6,9 @@ import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/Component/DebounceSelect";
 import { ReactQuill } from "@/app/Component/TextEditor";
 import { guidEmpty } from "@/app/constans";
+import { finishBackgroundJob, startBackgroundJob, updateBackgroundJob } from "@/app/utils/backgroundJobs";
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Checkbox, Col, Divider, Image, Input, InputNumber, Modal, Progress, Radio, Row, Select, Upload, notification } from "antd";
+import { Button, Checkbox, Col, Divider, Image, Input, InputNumber, Modal, Radio, Row, Select, Upload, notification } from "antd";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useEffect, useState } from "react";
@@ -180,25 +181,15 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         setIsImageModalVisible(false);
     };
 
-    const showJobProgress = (key, percent, description, status = "active", duration = 0) => {
-        notification.open({
-            key,
-            message: "Tạo tài liệu tự động",
-            description: (
-                <div>
-                    <div style={{ marginBottom: 8 }}>{description}</div>
-                    <Progress percent={percent} status={status} size="small" />
-                </div>
-            ),
-            duration,
-            placement: "bottomRight",
-        });
-    };
-
     const onSave = async () => {
         setLoading(true);
         const jobKey = `quick-document-${Date.now()}`;
-        showJobProgress(jobKey, 10, "Đang lưu tài liệu...");
+        startBackgroundJob({
+            id: jobKey,
+            title: "Tạo tài liệu tự động",
+            description: "Đang lưu tài liệu...",
+            percent: 10,
+        });
         const formData = new FormData();
         if (file) formData.append("FILE", file);
         if (fileUploadPdf) formData.append("FILE_PDF", fileUploadPdf);
@@ -217,7 +208,10 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         const response = await postDocumentInfo(formData);
         const pdfFile = fileUploadPdf?.originFileObj ?? fileUploadPdf;
         if (response?.DOCUMENT_ID && pdfFile && (!documentId || createBlog)) {
-            showJobProgress(jobKey, 40, "Đã lưu tài liệu. Đang chuẩn bị gửi sang hệ thống tự động...");
+            updateBackgroundJob(jobKey, {
+                percent: 40,
+                description: "Đã lưu tài liệu. Đang chuẩn bị gửi sang hệ thống tự động...",
+            });
             onClose();
             try {
                 const webhookFormData = new FormData();
@@ -236,7 +230,10 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                     webhookFormData.append("DOCUMENT_URL", `https://tailieutoan.vn/${response?.NAME_SLUG || ""}-${response?.IDENTITY_KEY || ""}`);
                 }
 
-                showJobProgress(jobKey, 70, "Đang tạo tài liệu tự động trong nền. Bạn có thể tiếp tục làm việc khác.");
+                updateBackgroundJob(jobKey, {
+                    percent: 70,
+                    description: "Đang tạo tài liệu tự động trong nền. Bạn có thể tiếp tục làm việc khác.",
+                });
                 const webhookResponse = await fetch(process.env.NEXT_PUBLIC_N8N_QUICK_DOCUMENT_CHILD, {
                     method: "POST",
                     body: webhookFormData,
@@ -244,12 +241,25 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                 if (!webhookResponse.ok) {
                     throw new Error(`Webhook failed with status ${webhookResponse.status}`);
                 }
-                showJobProgress(jobKey, 100, "Hoàn tất gửi yêu cầu tạo tài liệu tự động.", "success", 4);
+                finishBackgroundJob(jobKey, {
+                    percent: 100,
+                    status: "success",
+                    description: "Hoàn tất gửi yêu cầu tạo tài liệu tự động.",
+                });
             } catch(error) {
                 console.warn("Webhook call failed:", error);
-                showJobProgress(jobKey, 100, "Tài liệu đã lưu, nhưng gửi yêu cầu tạo tự động thất bại. Vui lòng thử lại hoặc kiểm tra n8n.", "exception", 0);
+                finishBackgroundJob(jobKey, {
+                    percent: 100,
+                    status: "exception",
+                    description: "Tài liệu đã lưu, nhưng gửi yêu cầu tạo tự động thất bại. Vui lòng thử lại hoặc kiểm tra n8n.",
+                });
             }
         } else {
+            finishBackgroundJob(jobKey, {
+                percent: 100,
+                status: "success",
+                description: "Đã lưu tài liệu thành công.",
+            });
             notification.success({
                 message: "Tạo tài liệu tự động",
                 description: "Đã lưu tài liệu thành công.",

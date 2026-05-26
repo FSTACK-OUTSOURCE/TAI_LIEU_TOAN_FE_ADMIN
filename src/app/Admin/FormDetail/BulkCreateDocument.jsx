@@ -4,6 +4,7 @@ import { getDocumentInfo, postDocumentInfo } from "@/app/Api/apiDocument";
 import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/Component/DebounceSelect";
 import { guidEmpty } from "@/app/constans";
+import { finishBackgroundJob, startBackgroundJob, updateBackgroundJob } from "@/app/utils/backgroundJobs";
 import { DeleteOutlined, InboxOutlined, PictureOutlined } from "@ant-design/icons";
 import {
     Button,
@@ -13,7 +14,6 @@ import {
     Input,
     InputNumber,
     Modal,
-    Progress,
     Radio,
     Row,
     Select,
@@ -286,6 +286,13 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         setRows((prev) => prev.filter((row) => row.key !== key));
     };
 
+    const openPdfPreview = (file) => {
+        if (!file || getExtension(file.name) !== ".pdf") return;
+        const previewUrl = URL.createObjectURL(file);
+        window.open(previewUrl, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+    };
+
     const handleReplacePreview = (row, file) => {
         const uploadFile = normalizeUploadFile(file);
         updateRow(row.key, {
@@ -367,21 +374,6 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         return paths;
     };
 
-    const showBulkProgress = (key, percent, description, progressStatus = "active", duration = 0) => {
-        notification.open({
-            key,
-            message: "Đăng bài hàng loạt",
-            description: (
-                <div>
-                    <div style={{ marginBottom: 8 }}>{description}</div>
-                    <Progress percent={percent} status={progressStatus} size="small" />
-                </div>
-            ),
-            duration,
-            placement: "bottomRight",
-        });
-    };
-
     const callAutomation = async (documentResponse, row, isCreateBlog) => {
         const pdfFile = row.usePreview ? row.pdfFile : null;
         if (!pdfFile) return;
@@ -428,7 +420,12 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         setRunning(true);
         const jobKey = `bulk-document-${Date.now()}`;
         const flags = STATUS_FLAGS[status];
-        showBulkProgress(jobKey, 3, `Bắt đầu tạo ${validRows.length} tài liệu...`);
+        startBackgroundJob({
+            id: jobKey,
+            title: "Đăng bài hàng loạt",
+            description: `Bắt đầu tạo ${validRows.length} tài liệu...`,
+            percent: 3,
+        });
         onClose();
 
         let successCount = 0;
@@ -439,7 +436,10 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
             const row = validRows[index];
             const basePercent = Math.round((index / validRows.length) * 90) + 5;
             try {
-                showBulkProgress(jobKey, basePercent, `Đang lưu ${index + 1}/${validRows.length}: ${row.name}`);
+                updateBackgroundJob(jobKey, {
+                    percent: basePercent,
+                    description: `Đang lưu ${index + 1}/${validRows.length}: ${row.name}`,
+                });
 
                 const formData = new FormData();
                 if (row.useDownload && row.downloadFile) formData.append("FILE", row.downloadFile);
@@ -477,7 +477,10 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                 }
 
                 if (row.usePreview && row.pdfFile) {
-                    showBulkProgress(jobKey, basePercent + 3, `Đã lưu ${row.name}. Đang gửi n8n xử lý nền...`);
+                    updateBackgroundJob(jobKey, {
+                        percent: basePercent + 3,
+                        description: `Đã lưu ${row.name}. Đang gửi n8n xử lý nền...`,
+                    });
                     await callAutomation(response, { ...row, thumbnailUrl }, createBlog);
                 } else {
                     skippedAutomationCount += 1;
@@ -490,13 +493,15 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         }
 
         const doneStatus = failCount > 0 ? "exception" : "success";
-        showBulkProgress(
+        finishBackgroundJob(
             jobKey,
-            100,
-            `Hoàn tất: ${successCount} thành công, ${failCount} lỗi${skippedAutomationCount ? `, ${skippedAutomationCount} không gửi n8n vì chưa có file preview` : ""}.`,
-            doneStatus,
-            failCount > 0 ? 0 : 5,
+            {
+                percent: 100,
+                status: doneStatus,
+                description: `Hoàn tất: ${successCount} thành công, ${failCount} lỗi${skippedAutomationCount ? `, ${skippedAutomationCount} không gửi n8n vì chưa có file preview` : ""}.`,
+            },
         );
+        setRunning(false);
     };
 
     const stopCollapse = (event) => event.stopPropagation();
@@ -512,18 +517,30 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         </Checkbox>
     );
 
-    const renderFileCard = ({ title, checked, disabled, onCheck, fileName, accept, onUpload, buttonText, children }) => (
+    const renderFileCard = ({ title, checked, disabled, onCheck, fileName, accept, onUpload, buttonText, previewFile, children }) => (
         <div className={styles.bulkFileCard}>
             <div className={styles.bulkFileCardHeader}>
                 {renderCheck(title, checked, disabled, onCheck)}
             </div>
             {children}
             <div className={styles.bulkFileName}>{fileName || "Chưa có"}</div>
-            <Upload beforeUpload={onUpload} showUploadList={false} accept={accept} maxCount={1}>
-                <Button size="small" className={styles.bulkReplaceButton}>
-                    {buttonText}
-                </Button>
-            </Upload>
+            <div className={styles.bulkFileActions}>
+                <Upload beforeUpload={onUpload} showUploadList={false} accept={accept} maxCount={1}>
+                    <Button size="small" className={styles.bulkReplaceButton}>
+                        {buttonText}
+                    </Button>
+                </Upload>
+                {previewFile && getExtension(previewFile.name) === ".pdf" && (
+                    <Button
+                        size="small"
+                        type="default"
+                        className={styles.bulkReplaceButton}
+                        onClick={() => openPdfPreview(previewFile)}
+                    >
+                        Open New tab preview
+                    </Button>
+                )}
+            </div>
         </div>
     );
 
@@ -580,6 +597,7 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                     accept: ".pdf",
                     onUpload: (file) => handleReplacePreview(row, file),
                     buttonText: row.pdfFile ? "Thay file preview" : "Upload file preview",
+                    previewFile: row.pdfFile,
                 })}
 
                 {renderFileCard({
