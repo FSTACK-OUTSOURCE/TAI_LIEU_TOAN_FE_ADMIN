@@ -1,86 +1,128 @@
 "use client";
-import Cookies from 'js-cookie';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import styles from "../page.module.css";
+
+import Cookies from "js-cookie";
 import Image from "next/image";
-import { useEffect, useRef } from 'react';
-import { getTokenByUser } from '../Api/apiUser';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-
-
+import { FormEvent, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faLock, faUser } from "@fortawesome/free-solid-svg-icons";
+import { getTokenByUser } from "../Api/apiUser";
+import styles from "../page.module.css";
 
 export default function Login() {
-
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const getTokenApi = async () => {
-    const username = usernameRef.current!.value;
-    const password = passwordRef.current!.value;
-    const queryParams = { USER_NAME: username, PASSWORD: password };
-    const response = await getTokenByUser(queryParams);
-    if(response.success){
-      const token = response.access_token;
-      Cookies.set('token', token);
-      try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        localStorage.setItem('isAdmin', decoded?.IsRoot === 'True' ? '1' : '0');
-        localStorage.setItem('isEditer', decoded?.IsEditer === 'True' ? '1' : '0');
-      } catch {}
-      const queryParameters = new URLSearchParams(window.location.search)
-      var return_url = queryParameters.get("redirectUrl");
-      window.location.href = return_url ? window.location.origin + return_url : window.location.origin + '/Admin'
+  const getTokenApi = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const username = usernameRef.current?.value?.trim() || "";
+    const password = passwordRef.current?.value || "";
+
+    if (!username || !password) {
+      setError("Vui lòng nhập đầy đủ tài khoản và mật khẩu.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const response = await getTokenByUser({ USER_NAME: username, PASSWORD: password });
+      if (response.success) {
+        const token = response.access_token;
+        Cookies.set("token", token);
+        try {
+          const decoded = JSON.parse(atob(token.split(".")[1]));
+          localStorage.setItem("isAdmin", decoded?.IsRoot === "True" ? "1" : "0");
+          localStorage.setItem("isEditer", decoded?.IsEditer === "True" ? "1" : "0");
+        } catch {}
+
+        const queryParameters = new URLSearchParams(window.location.search);
+        const returnUrl = queryParameters.get("redirectUrl");
+        window.location.href = returnUrl
+          ? window.location.origin + returnUrl
+          : window.location.origin + "/Admin";
+        return;
+      }
+      setError("Tài khoản hoặc mật khẩu không đúng.");
+    } catch {
+      setError("Không thể đăng nhập lúc này. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
     }
   };
 
-
   return (
-    <section className={`vh-100 ${styles.backgroundRegis}`}>
-      <div className="container h-100">
-        <div className="row d-flex justify-content-center align-items-center h-100">
-          <div className="col-lg-12 col-xl-11">
-            <div className={`card text-black ${styles.regisContainer}`}>
-              <div className="card-body p-md-5">
-                <div className="row justify-content-center">
-                  <div className="col-md-9 col-lg-6 col-xl-5">
-                    <Image
-                      src="/login.png"
-                      alt="Tài liệu toán.vn"
-                      className='img-fluid'
-                      width={500}
-                      height={300}
-                    />
-                  </div>
-                  <div className="col-md-8 col-lg-6 col-xl-4 offset-xl-1">
-                    <form>
-                      <div className="d-flex flex-row align-items-center justify-content-center justify-content-lg-start">
-                        <p className={`text-center h1 fw-bold mb-5 mx-1 mx-md-4 mt-4`}>Sign in</p>
-                      </div>
-                      <div className="d-flex flex-row align-items-center mb-4">
-                        <FontAwesomeIcon icon="user" className={`fa-solid fa-user ${styles.iconRegis}`} />
-                        <div className="form-outline flex-fill mb-0">
-                          <input type="text" id="userAccount" className="form-control" placeholder='Enter Your UserName' ref={usernameRef} />
-                        </div>
-                      </div>
-
-                      <div className="d-flex flex-row align-items-center mb-4">
-                        <FontAwesomeIcon icon="lock" className={`fa-solid fa-lock ${styles.iconRegis}`} />
-                        <div className="form-outline flex-fill mb-0">
-                          <input type="password" id="passWordAccount" className="form-control" placeholder='Enter Your Password' ref={passwordRef} />
-                        </div>
-                      </div>
-
-                      <div className="text-center text-lg-start mt-4 pt-2">
-                        <button type="button" className={`btn btn-primary btn-lg ${styles.loginPass}`} onClick={getTokenApi}>Login</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
+    <main className={styles.loginPage}>
+      <section className={styles.loginShell}>
+        <div className={styles.loginVisual}>
+          <div className={styles.loginBrand}>
+            <span className={styles.loginBrandMark}>TL</span>
+            <div>
+              <strong>Tài Liệu Toán</strong>
+              <span>Admin Console</span>
             </div>
           </div>
+          <div className={styles.loginImageWrap}>
+            <Image
+              src="/login.png"
+              alt="Tài liệu toán"
+              width={560}
+              height={360}
+              priority
+              className={styles.loginImage}
+            />
+          </div>
+          <div className={styles.loginVisualCopy}>
+            <h1>Quản trị tài liệu tập trung</h1>
+            <p>Theo dõi, đăng tải và tổ chức kho tài liệu toán trong một giao diện gọn gàng.</p>
+          </div>
         </div>
-      </div>
-    </section>
+
+        <div className={styles.loginPanel}>
+          <div className={styles.loginHeader}>
+            <span>Đăng nhập hệ thống</span>
+            <h2>Chào mừng trở lại</h2>
+            <p>Sử dụng tài khoản quản trị để tiếp tục làm việc.</p>
+          </div>
+
+          <form className={styles.loginForm} onSubmit={getTokenApi}>
+            <label className={styles.loginField}>
+              <span>Tài khoản</span>
+              <div className={styles.loginInputWrap}>
+                <FontAwesomeIcon icon={faUser} className={styles.loginFieldIcon} />
+                <input
+                  ref={usernameRef}
+                  type="text"
+                  id="userAccount"
+                  placeholder="Nhập tài khoản"
+                  autoComplete="username"
+                />
+              </div>
+            </label>
+
+            <label className={styles.loginField}>
+              <span>Mật khẩu</span>
+              <div className={styles.loginInputWrap}>
+                <FontAwesomeIcon icon={faLock} className={styles.loginFieldIcon} />
+                <input
+                  ref={passwordRef}
+                  type="password"
+                  id="passWordAccount"
+                  placeholder="Nhập mật khẩu"
+                  autoComplete="current-password"
+                />
+              </div>
+            </label>
+
+            {error && <div className={styles.loginError}>{error}</div>}
+
+            <button className={styles.loginSubmit} type="submit" disabled={loading}>
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
   );
 }

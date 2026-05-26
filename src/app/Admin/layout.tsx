@@ -1,36 +1,48 @@
-'use client'
+"use client";
+
+import { getUnreadCount } from "@/app/Api/apiRegistration";
 import { Inter } from "next/font/google";
 import Image from "next/image";
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import Styles from "../page.module.css";
+
 const inter = Inter({ subsets: ["latin"] });
 
-import { getUnreadCount } from '@/app/Api/apiRegistration';
+const adminLinks = [
+  { href: "/Admin/Config", label: "Cấu hình", adminOnly: true },
+  { href: "/Admin/Account", label: "Tài khoản", adminOnly: true },
+  { href: "/Admin/Notification", label: "Đăng ký mới", adminOnly: true, badge: true },
+  { href: "/Admin/Topic", label: "Chủ đề", adminOnly: true },
+  { href: "/Admin/Group", label: "Bộ tài liệu", adminOnly: true },
+  { href: "/Admin/Document", label: "Tài liệu", adminOnly: true },
+  { href: "/Admin/DocumentOrder", label: "Tài liệu nổi bật", adminOnly: true },
+  { href: "/Admin/HistoryRecharge", label: "Lịch sử giao dịch", adminOnly: true },
+  { href: "/Admin/HistoryBuy", label: "Lịch sử mua hàng", adminOnly: true },
+  { href: "/Admin/Blog", label: "Blog" },
+];
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-
-  const router = useRouter();
+  const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    const admin = localStorage.getItem('isAdmin') === '1';
-    const editer = localStorage.getItem('isEditer') === '1';
+    const admin = localStorage.getItem("isAdmin") === "1";
+    const editer = localStorage.getItem("isEditer") === "1";
     if (!admin && !editer) {
-      window.location.href = '/Login';
+      window.location.href = "/Login";
       return;
     }
     setIsAdmin(admin);
     setReady(true);
 
-    // fetch unread count + poll every 30s
     const fetchUnread = async () => setUnreadCount(await getUnreadCount());
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
@@ -40,123 +52,54 @@ export default function RootLayout({
   const handleLogout = () => {
     const expired = "expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
     document.cookie = `token=; ${expired}`;
-    localStorage.removeItem('isAdmin');
-    localStorage.removeItem('isEditer');
-    window.location.href = '/Login';
+    localStorage.removeItem("isAdmin");
+    localStorage.removeItem("isEditer");
+    window.location.href = "/Login";
   };
+
+  const navClass = (href: string) =>
+    `${Styles.fontSideBar} ${pathname === href || pathname?.startsWith(`${href}/`) ? Styles.activeSideBarLink : ""}`;
 
   if (!ready) return null;
 
   return (
-    <html lang="en">
-      <body className={`${Styles.body} ${inter.className} ${Styles.height100} ${Styles.backgroundColorSideBar} `}>
-        <div className="col-md-12">
-          <div className="row">
-            <div className={`col-md-2 ${Styles.sideBar}`}>
-              <div className={`d-flex flex-column flex-shrink-0 p-3 ${Styles.height100}`}>
-                <a href="/" className="d-flex align-items-center mb-3 mb-md-0 me-md-auto link-dark text-decoration-none pb-5 pt-5">
-                  <svg className="bi me-2" width="40" height="32"></svg>
-                  <Image
-                    src="/logopage.png"
-                    alt="Tài liệu toán.vn"
-                    className='img-fluid'
-                    width={300}
-                    height={300}
-                  />
-                </a>
-                <ul className="nav nav-pills flex-column mb-auto">
-                  {isAdmin && (
-                    <>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Config" className={`nav-link ${Styles.fontSideBar}`} aria-current="page">
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Cấu hình
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Account" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Tài khoản
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Notification" className={`nav-link ${Styles.fontSideBar}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span>
-                            <svg className="bi me-2" width="16" height="16"></svg>
-                            Đăng ký mới
-                          </span>
-                          {unreadCount > 0 && (
-                            <span style={{
-                              background: '#ff4d4f',
-                              color: '#fff',
-                              borderRadius: '10px',
-                              padding: '1px 7px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              minWidth: '20px',
-                              textAlign: 'center',
-                              lineHeight: '18px',
-                            }}>
-                              {unreadCount > 99 ? '99+' : unreadCount}
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Topic" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Chủ đề
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Group" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Bộ tài liệu
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/Document" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Tài liệu
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/DocumentOrder" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Tài liệu nổi bật
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/HistoryRecharge" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Lịch sử giao dịch
-                        </Link>
-                      </li>
-                      <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                        <Link href="/Admin/HistoryBuy" className={`nav-link ${Styles.fontSideBar}`}>
-                          <svg className="bi me-2" width="16" height="16"></svg>
-                          Lịch sử mua hàng
-                        </Link>
-                      </li>
-                    </>
-                  )}
-                  <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                    <Link href="/Admin/Blog" className={`nav-link ${Styles.fontSideBar}`}>
-                      <svg className="bi me-2" width="16" height="16"></svg>
-                      Blog
+    <html lang="vi">
+      <body className={`${Styles.body} ${inter.className} ${Styles.backgroundColorSideBar}`}>
+        <div className={Styles.adminShell}>
+          <aside className={Styles.sideBar}>
+            <div className={Styles.sideBarInner}>
+              <Link href="/Admin/Document" className={Styles.sideBarLogo}>
+                <Image
+                  src="/logopage.png"
+                  alt="Tài liệu toán.vn"
+                  width={260}
+                  height={84}
+                  priority
+                />
+              </Link>
+
+              <nav className={Styles.sideBarNav} aria-label="Admin navigation">
+                {adminLinks
+                  .filter((link) => !link.adminOnly || isAdmin)
+                  .map((link) => (
+                    <Link key={link.href} href={link.href} className={navClass(link.href)}>
+                      <span>{link.label}</span>
+                      {link.badge && unreadCount > 0 && (
+                        <span className={Styles.sideBarBadge}>
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      )}
                     </Link>
-                  </li>
-                  <li className={`nav-item pt-3 pb-3 ${Styles.borderSideBarItem}`}>
-                    <Link href="#" onClick={handleLogout} className={`nav-link ${Styles.fontSideBar}`}>
-                      <svg className="bi me-2" width="16" height="16"></svg>
-                      Đăng xuất
-                    </Link>
-                  </li>
-                </ul>
-              </div>
+                  ))}
+              </nav>
+
+              <button type="button" onClick={handleLogout} className={Styles.logoutSideBarLink}>
+                Đăng xuất
+              </button>
             </div>
-            <div className="col-md-10">{children}</div>
-          </div>
+          </aside>
+
+          <main className={Styles.adminContent}>{children}</main>
         </div>
       </body>
     </html>
