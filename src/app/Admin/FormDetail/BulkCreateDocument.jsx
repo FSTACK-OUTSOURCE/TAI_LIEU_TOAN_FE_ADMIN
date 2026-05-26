@@ -4,11 +4,12 @@ import { getDocumentInfo, postDocumentInfo } from "@/app/Api/apiDocument";
 import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/Component/DebounceSelect";
 import { guidEmpty } from "@/app/constans";
-import { DeleteOutlined, InboxOutlined } from "@ant-design/icons";
+import { DeleteOutlined, InboxOutlined, PictureOutlined } from "@ant-design/icons";
 import {
     Button,
     Checkbox,
     Col,
+    Collapse,
     Input,
     InputNumber,
     Modal,
@@ -16,10 +17,10 @@ import {
     Radio,
     Row,
     Select,
-    Table,
     Upload,
     notification,
 } from "antd";
+import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
 import styles from "../../page.module.css";
 
@@ -38,6 +39,7 @@ const FILE_TYPE_MAP = {
 };
 
 const DOWNLOAD_EXTENSIONS = [".doc", ".docx", ".rar", ".zip", ".xlsx", ".xls", ".ppt", ".pptx"];
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
 const STATUS_FLAGS = {
     published: { IS_FOLDER: false, IS_PUBLIC: true, IS_PIN: false, IS_HIDDEN: false },
@@ -96,7 +98,7 @@ const buildRowsFromFiles = (uploadFiles, defaults) => {
         .map(normalizeUploadFile)
         .filter((file) => {
             const ext = getExtension(file.name);
-            return ext === ".pdf" || DOWNLOAD_EXTENSIONS.includes(ext);
+            return ext === ".pdf" || DOWNLOAD_EXTENSIONS.includes(ext) || IMAGE_EXTENSIONS.includes(ext);
         });
 
     files.forEach((file) => {
@@ -117,6 +119,9 @@ const buildRowsFromFiles = (uploadFiles, defaults) => {
             folderPath: groupKey,
             pdfFile: null,
             downloadFile: null,
+            thumbnailFile: null,
+            thumbnailPreview: "",
+            detailImages: [],
             usePreview: false,
             useDownload: false,
             fileType: defaults.FILE_TYPE || null,
@@ -134,6 +139,9 @@ const buildRowsFromFiles = (uploadFiles, defaults) => {
             current.useDownload = true;
             current.fileType = FILE_TYPE_MAP[ext] || current.fileType;
             current.name = current.name || getBaseName(file.name);
+        } else if (IMAGE_EXTENSIONS.includes(ext)) {
+            current.thumbnailFile = file;
+            current.thumbnailPreview = URL.createObjectURL(file);
         }
 
         current.status = current.pdfFile || current.downloadFile ? "ready" : "invalid";
@@ -300,6 +308,65 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         return false;
     };
 
+    const handleReplaceThumbnail = (row, file) => {
+        const uploadFile = normalizeUploadFile(file);
+        updateRow(row.key, {
+            thumbnailFile: uploadFile,
+            thumbnailPreview: URL.createObjectURL(uploadFile),
+        });
+        return false;
+    };
+
+    const handleAddDetailImages = (row, fileList) => {
+        const existingKeys = new Set((row.detailImages || []).map((image) => image.fileKey));
+        const nextImages = fileList
+            .map((file) => {
+                const uploadFile = normalizeUploadFile(file);
+                const fileKey = `${uploadFile.name}-${uploadFile.size}-${uploadFile.lastModified || ""}`;
+                if (existingKeys.has(fileKey)) return null;
+                return {
+                    uid: `${fileKey}-${Math.random()}`,
+                    fileKey,
+                    file: uploadFile,
+                    name: uploadFile.name,
+                    preview: URL.createObjectURL(uploadFile),
+                };
+            })
+            .filter(Boolean);
+        if (!nextImages.length) return;
+        updateRow(row.key, {
+            detailImages: [...(row.detailImages || []), ...nextImages],
+        });
+    };
+
+    const removeDetailImage = (row, imageUid) => {
+        updateRow(row.key, {
+            detailImages: (row.detailImages || []).filter((image) => image.uid !== imageUid),
+        });
+    };
+
+    const uploadThumbnail = async (file) => {
+        if (!file) return "";
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/file/upload`, formData, {
+            headers: {
+                Authorization: `Bearer ${getClientSideCookie("token")}`,
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data?.FilePath || "";
+    };
+
+    const uploadImages = async (images = []) => {
+        const paths = [];
+        for (const image of images) {
+            const path = await uploadThumbnail(image.file);
+            if (path) paths.push(path);
+        }
+        return paths;
+    };
+
     const showBulkProgress = (key, percent, description, progressStatus = "active", duration = 0) => {
         notification.open({
             key,
@@ -329,7 +396,7 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         webhookFormData.append("DOCUMENT_ID", documentResponse?.DOCUMENT_ID || "");
         webhookFormData.append("DOCUMENT_TITLE", documentResponse?.NAME || row.name || "");
         webhookFormData.append("IS_CREATE_BLOG", isCreateBlog ? "true" : "false");
-        webhookFormData.append("THUMBNAIL_URL", documentResponse?.IMAGE_LINK || "");
+        webhookFormData.append("THUMBNAIL_URL", documentResponse?.IMAGE_LINK || row.thumbnailUrl || "");
         webhookFormData.append("IS_CREATE_NEW", "true");
 
         if (isCreateBlog) {
@@ -377,6 +444,8 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                 const formData = new FormData();
                 if (row.useDownload && row.downloadFile) formData.append("FILE", row.downloadFile);
                 if (row.usePreview && row.pdfFile) formData.append("FILE_PDF", row.pdfFile);
+                const thumbnailUrl = row.thumbnailFile ? await uploadThumbnail(row.thumbnailFile) : row.thumbnailUrl || "";
+                const detailImagePaths = await uploadImages(row.detailImages);
 
                 const saveData = {
                     NAME: row.name,
@@ -387,6 +456,8 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                     CATEGORY: defaults.CATEGORY || "single",
                     FILE_TYPE: row.fileType || defaults.FILE_TYPE,
                     TOPIC_IDS: defaults.TOPIC_IDS || undefined,
+                    IMAGE_LINK: thumbnailUrl || undefined,
+                    IMAGES: detailImagePaths.length ? JSON.stringify(detailImagePaths) : undefined,
                     ...flags,
                 };
 
@@ -407,7 +478,7 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
 
                 if (row.usePreview && row.pdfFile) {
                     showBulkProgress(jobKey, basePercent + 3, `Đã lưu ${row.name}. Đang gửi n8n xử lý nền...`);
-                    await callAutomation(response, row, createBlog);
+                    await callAutomation(response, { ...row, thumbnailUrl }, createBlog);
                 } else {
                     skippedAutomationCount += 1;
                 }
@@ -428,114 +499,166 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         );
     };
 
-    const columns = [
-        {
-            title: "Tên tài liệu",
-            dataIndex: "name",
-            render: (_, row) => (
-                <Input value={row.name} onChange={(e) => updateRow(row.key, { name: e.target.value })} />
-            ),
-        },
-        {
-            title: "PDF",
-            width: 220,
-            render: (_, row) => (
-                <div>
-                    <Checkbox
-                        checked={row.usePreview}
-                        disabled={!row.pdfFile}
-                        onChange={(e) => updateRow(row.key, { usePreview: e.target.checked })}
-                    >
-                        File preview
-                    </Checkbox>
-                    <div className={styles.bulkFileName}>{row.pdfFile?.name || "Chưa có"}</div>
-                    <Upload
-                        beforeUpload={(file) => handleReplacePreview(row, file)}
-                        showUploadList={false}
-                        accept=".pdf"
-                        maxCount={1}
-                    >
-                        <Button size="small" className={styles.bulkReplaceButton}>
-                            {row.pdfFile ? "Thay file" : "Upload"}
-                        </Button>
-                    </Upload>
+    const stopCollapse = (event) => event.stopPropagation();
+
+    const renderCheck = (label, checked, disabled, onChange) => (
+        <Checkbox
+            checked={checked}
+            disabled={disabled}
+            onClick={stopCollapse}
+            onChange={onChange}
+        >
+            {label}
+        </Checkbox>
+    );
+
+    const renderFileCard = ({ title, checked, disabled, onCheck, fileName, accept, onUpload, buttonText, children }) => (
+        <div className={styles.bulkFileCard}>
+            <div className={styles.bulkFileCardHeader}>
+                {renderCheck(title, checked, disabled, onCheck)}
+            </div>
+            {children}
+            <div className={styles.bulkFileName}>{fileName || "Chưa có"}</div>
+            <Upload beforeUpload={onUpload} showUploadList={false} accept={accept} maxCount={1}>
+                <Button size="small" className={styles.bulkReplaceButton}>
+                    {buttonText}
+                </Button>
+            </Upload>
+        </div>
+    );
+
+    const renderItemHeader = (row, index) => (
+        <div className={styles.bulkItemHeader}>
+            <div className={styles.bulkItemTitleBlock}>
+                <span className={styles.bulkItemIndex}>{index + 1}</span>
+                <span className={styles.bulkItemTitle}>{row.name || "Chưa đặt tên"}</span>
+            </div>
+            <div className={styles.bulkItemChecks}>
+                {renderCheck("Preview", row.usePreview, !row.pdfFile, (e) => updateRow(row.key, { usePreview: e.target.checked }))}
+                {renderCheck("File tải", row.useDownload, !row.downloadFile, (e) => updateRow(row.key, { useDownload: e.target.checked }))}
+                <span className={row.thumbnailFile ? styles.bulkStatusOk : styles.bulkStatusMuted}>
+                    Thumbnail {row.thumbnailFile ? "có" : "chưa có"}
+                </span>
+            </div>
+        </div>
+    );
+
+    const renderItemBody = (row) => (
+        <div className={styles.bulkItemBody}>
+            <Row gutter={16}>
+                <Col xs={24} lg={12}>
+                    <span className={styles.quickFieldLabel}>Tên tài liệu</span>
+                    <Input value={row.name} onChange={(e) => updateRow(row.key, { name: e.target.value })} />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <span className={styles.quickFieldLabel}>Giá</span>
+                    <InputNumber
+                        min={0}
+                        style={{ width: "100%" }}
+                        value={row.price}
+                        onChange={(value) => updateRow(row.key, { price: value })}
+                    />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <span className={styles.quickFieldLabel}>Thứ tự</span>
+                    <InputNumber
+                        min={0}
+                        style={{ width: "100%" }}
+                        value={row.orderNo}
+                        onChange={(value) => updateRow(row.key, { orderNo: value })}
+                    />
+                </Col>
+            </Row>
+
+            <div className={styles.bulkFileStack}>
+                {renderFileCard({
+                    title: "File preview PDF",
+                    checked: row.usePreview,
+                    disabled: !row.pdfFile,
+                    onCheck: (e) => updateRow(row.key, { usePreview: e.target.checked }),
+                    fileName: row.pdfFile?.name,
+                    accept: ".pdf",
+                    onUpload: (file) => handleReplacePreview(row, file),
+                    buttonText: row.pdfFile ? "Thay file preview" : "Upload file preview",
+                })}
+
+                {renderFileCard({
+                    title: "File tải",
+                    checked: row.useDownload,
+                    disabled: !row.downloadFile,
+                    onCheck: (e) => updateRow(row.key, { useDownload: e.target.checked }),
+                    fileName: row.downloadFile?.name,
+                    accept: ".doc,.docx,.rar,.zip,.xlsx,.xls,.ppt,.pptx",
+                    onUpload: (file) => handleReplaceDownload(row, file),
+                    buttonText: row.downloadFile ? "Thay file tải" : "Upload file tải",
+                })}
+
+                <div className={styles.bulkFileCard}>
+                    <span className={styles.quickFieldLabel}>Thumbnail</span>
+                    <div className={styles.bulkThumbnailRow}>
+                        <div className={styles.bulkThumbnailPreview}>
+                            {row.thumbnailPreview ? (
+                                <img src={row.thumbnailPreview} alt={row.thumbnailFile?.name || "thumbnail"} />
+                            ) : (
+                                <PictureOutlined />
+                            )}
+                        </div>
+                        <div className={styles.bulkThumbnailActions}>
+                            {row.thumbnailFile?.name && (
+                                <div className={styles.bulkFileName}>{row.thumbnailFile.name}</div>
+                            )}
+                            <Upload
+                                beforeUpload={(file) => handleReplaceThumbnail(row, file)}
+                                showUploadList={false}
+                                accept=".jpg,.jpeg,.png,.webp"
+                                maxCount={1}
+                            >
+                                <Button size="small" className={styles.bulkReplaceButton}>
+                                    {row.thumbnailFile ? "Thay ảnh" : "Upload ảnh"}
+                                </Button>
+                            </Upload>
+                        </div>
+                    </div>
                 </div>
-            ),
-        },
-        {
-            title: "File tải",
-            width: 220,
-            render: (_, row) => (
-                <div>
-                    <Checkbox
-                        checked={row.useDownload}
-                        disabled={!row.downloadFile}
-                        onChange={(e) => updateRow(row.key, { useDownload: e.target.checked })}
-                    >
-                        File tải
-                    </Checkbox>
-                    <div className={styles.bulkFileName}>{row.downloadFile?.name || "Chưa có"}</div>
-                    <Upload
-                        beforeUpload={(file) => handleReplaceDownload(row, file)}
-                        showUploadList={false}
-                        accept=".doc,.docx,.rar,.zip,.xlsx,.xls,.ppt,.pptx"
-                        maxCount={1}
-                    >
-                        <Button size="small" className={styles.bulkReplaceButton}>
-                            {row.downloadFile ? "Thay file" : "Upload"}
-                        </Button>
-                    </Upload>
+
+                <div className={styles.bulkFileCard}>
+                    <span className={styles.quickFieldLabel}>Ảnh chi tiết (nhiều ảnh)</span>
+                    <div className={styles.bulkDetailImagesBox}>
+                        <Upload
+                            multiple
+                            beforeUpload={() => false}
+                            showUploadList={false}
+                            accept=".jpg,.jpeg,.png,.webp"
+                            onChange={({ fileList }) => handleAddDetailImages(row, fileList)}
+                        >
+                            <button className={styles.bulkDetailUploadTile} type="button">
+                                <span>+</span>
+                                <span>Tải ảnh lên</span>
+                            </button>
+                        </Upload>
+                        {(row.detailImages || []).map((image) => (
+                            <div className={styles.bulkDetailImageTile} key={image.uid}>
+                                <img src={image.preview} alt={image.name} />
+                                <button type="button" onClick={() => removeDetailImage(row, image.uid)}>
+                                    ×
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            ),
-        },
-        {
-            title: "Giá",
-            width: 130,
-            render: (_, row) => (
-                <InputNumber
-                    min={0}
-                    style={{ width: "100%" }}
-                    value={row.price}
-                    onChange={(value) => updateRow(row.key, { price: value })}
-                />
-            ),
-        },
-        {
-            title: "Thứ tự",
-            width: 100,
-            render: (_, row) => (
-                <InputNumber
-                    min={0}
-                    style={{ width: "100%" }}
-                    value={row.orderNo}
-                    onChange={(value) => updateRow(row.key, { orderNo: value })}
-                />
-            ),
-        },
-        {
-            title: "",
-            width: 64,
-            fixed: "right",
-            render: (_, row) => (
-                <Button
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={() => removeRow(row.key)}
-                />
-            ),
-        },
-    ];
+            </div>
+        </div>
+    );
 
     return (
         <Modal
             open={true}
             title="Đăng bài hàng loạt"
             onCancel={onClose}
-            width={1180}
+            width="calc(100vw - 32px)"
             centered
-            className={styles.documentDetailModal}
-            styles={{ body: { maxHeight: "calc(100vh - 190px)", overflowY: "auto" } }}
+            className={`${styles.documentDetailModal} ${styles.bulkMaxModal}`}
+            styles={{ body: { height: "calc(100vh - 150px)", overflowY: "auto" } }}
             footer={[
                 <Button key="close" onClick={onClose} disabled={running}>
                     Đóng
@@ -653,7 +776,7 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                         directory
                         beforeUpload={() => false}
                         showUploadList={false}
-                        accept=".pdf,.doc,.docx,.rar,.zip,.xlsx,.xls,.ppt,.pptx"
+                        accept=".pdf,.doc,.docx,.rar,.zip,.xlsx,.xls,.ppt,.pptx,.jpg,.jpeg,.png,.webp"
                         onChange={({ fileList }) => setRows(buildRowsFromFiles(fileList, defaults))}
                     >
                         <p className="ant-upload-drag-icon">
@@ -673,14 +796,27 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                     </Checkbox>
                 </div>
 
-                <Table
-                    rowKey="key"
-                    size="small"
-                    bordered
-                    columns={columns}
-                    dataSource={rows}
-                    pagination={{ pageSize: 8 }}
-                    scroll={{ x: 900 }}
+                <Collapse
+                    key={rows.map((row) => row.key).join("|")}
+                    className={styles.bulkItemCollapse}
+                    bordered={false}
+                    defaultActiveKey={rows.slice(0, 3).map((row) => row.key)}
+                    items={rows.map((row, index) => ({
+                        key: row.key,
+                        label: renderItemHeader(row, index),
+                        extra: (
+                            <Button
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    removeRow(row.key);
+                                }}
+                            />
+                        ),
+                        children: renderItemBody(row),
+                    }))}
                 />
             </div>
         </Modal>
