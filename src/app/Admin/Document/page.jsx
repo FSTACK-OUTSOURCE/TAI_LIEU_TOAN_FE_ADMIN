@@ -31,6 +31,7 @@ export default function Document() {
     const [showBulkCreate, setShowBulkCreate] = useState(false);
     const [quickCreateDocumentId, setQuickCreateDocumentId] = useState(null);
     const [documentId, setDocumentId] = useState(null);
+    const [detailModalKey, setDetailModalKey] = useState(0);
     const [topics, setTopics] = useState([]);
     const [users, setUsers] = useState([]);
     const [filter, setFilter] = useState({
@@ -104,6 +105,18 @@ export default function Document() {
             }
         }
     }
+
+    const openEditDocument = (nextDocumentId) => {
+        setDocumentId(nextDocumentId);
+        setDetailModalKey((prev) => prev + 1);
+        setShowPopup(true);
+    };
+
+    const openCreateDocument = () => {
+        setDocumentId(null);
+        setDetailModalKey((prev) => prev + 1);
+        setShowPopup(true);
+    };
 
     const showDeleteArray = () => {
         Swal.fire({
@@ -231,8 +244,7 @@ export default function Document() {
             render: (text, record) => (
                 <Radio.Group value={size} onChange={(e) => setSize(e.target.value)}>
                     <Radio.Button onClick={() => {
-                        setShowPopup(true);
-                        setDocumentId(record.DOCUMENT_ID);
+                        openEditDocument(record.DOCUMENT_ID);
                     }} value={record.DOCUMENT_ID}>Sửa</Radio.Button>
                     {/* <Radio.Button onClick={() => showDeleteConfirm(record.DOCUMENT_ID)} value="Xoá">Xoá</Radio.Button> */}
                 </Radio.Group>
@@ -504,8 +516,7 @@ export default function Document() {
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <Button className={`${styles.buttonFeature}`} onClick={() => {
-                        setShowPopup(true)
-                        setDocumentId(null)
+                        openCreateDocument()
                     }} type="primary" shape="round" icon={<PlusOutlined />} size={size}>
                         Thêm mới
                     </Button>
@@ -523,7 +534,7 @@ export default function Document() {
                     </Button>
                 </div>
             </div>
-            {showPopup && <DetailDocument onClose={() => { togglePopup(parentDocumentId) }} documentId={documentId} parentDocumentId={parentDocumentId} />}
+            {showPopup && <DetailDocument key={`${documentId || 'new'}-${detailModalKey}`} onClose={() => { togglePopup(parentDocumentId) }} documentId={documentId} parentDocumentId={parentDocumentId} />}
             {showQuickCreate && <QuickCreateDocument onClose={() => { setShowQuickCreate(false); setQuickCreateDocumentId(null); getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: pagination.current, PageSize: pagination.pageSize }); }} parentDocumentId={parentDocumentId} documentId={quickCreateDocumentId} />}
             {showBulkCreate && <BulkCreateDocument onClose={() => { setShowBulkCreate(false); getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: pagination.current, PageSize: pagination.pageSize }); }} parentDocumentId={parentDocumentId} />}
             <div className={`col-md-12 ${styles.contentRight}`}>

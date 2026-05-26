@@ -158,8 +158,17 @@ const DetailDocument = (props) => {
     };
 
     const GetData = async (documentId) => {
+        setData({});
+        setQuilll("");
+        setFile(null);
+        setFileUploadPdf(null);
+        setFileDoc([]);
+        setFilePdf([]);
+        setFileImage([]);
+        setFileImages([]);
+
         if (documentId) {
-            const queryParams = { DOCUMENT_ID: documentId, Columns: "EMAILS" };
+            const queryParams = { DOCUMENT_ID: documentId, Columns: "*" };
             var response = await getDocumentInfo(queryParams);
             if (
                 response.success &&
