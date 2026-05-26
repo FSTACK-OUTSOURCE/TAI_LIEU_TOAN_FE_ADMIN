@@ -7,10 +7,11 @@ import React from "react";
 import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Button, Radio, Table, Checkbox, Anchor, Input, Select, DatePicker } from 'antd';
 import DetailDocument from '../FormDetail/DetailDocument/page';
-import QuickCreateDocument from '../FormDetail/QuickCreateDocument/page';
+import QuickCreateDocument from '../FormDetail/QuickCreateDocument/QuickCreateDocument';
 import BulkCreateDocument from '../FormDetail/BulkCreateDocument';
 import { deleteDocumentById, getDocumentInfo, getParentDocuments, quickCreateFolderDocument } from '@/app/Api/apiDocument';
 import { getTopicInfo } from '@/app/Api/apiTopic';
+import { getUserInfo } from '@/app/Api/apiUser';
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Breadcrumb } from "antd";
 import Swal from 'sweetalert2';
@@ -31,7 +32,16 @@ export default function Document() {
     const [quickCreateDocumentId, setQuickCreateDocumentId] = useState(null);
     const [documentId, setDocumentId] = useState(null);
     const [topics, setTopics] = useState([]);
-    const [filter, setFilter] = useState({ NAME: '', TOPIC_IDS: '', CREATED_DATE_FROM: null, CREATED_DATE_TO: null });
+    const [users, setUsers] = useState([]);
+    const [filter, setFilter] = useState({
+        NAME: '',
+        TOPIC_IDS: '',
+        CREATED_DATE_FROM: null,
+        CREATED_DATE_TO: null,
+        CREATED_USER_ID: '',
+        ORDER_BY: 'CREATED_DATE',
+        ORDER_DIRECTION: 'DESC',
+    });
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 20,  // Number of items per page
@@ -133,6 +143,24 @@ export default function Document() {
         });
     }
 
+    const getDocumentDateTime = (value) => {
+        if (!value) return 0;
+        const parsed = new Date(value).getTime();
+        if (!Number.isNaN(parsed)) return parsed;
+
+        const match = value.toString().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        if (!match) return 0;
+        const [, day, month, year, hour = 0, minute = 0, second = 0] = match;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)).getTime();
+    };
+
+    const sortDocumentsByCreatedDate = (items = [], direction = 'DESC') =>
+        [...items].sort((a, b) => {
+            const first = getDocumentDateTime(a.CREATED_DATE);
+            const second = getDocumentDateTime(b.CREATED_DATE);
+            return direction === 'ASC' ? first - second : second - first;
+        });
+
     const columns = [
         {
             title: 'STT',
@@ -167,7 +195,9 @@ export default function Document() {
             render: (text, record) => (
                 <>{FormatDateTime(new Date(record.CREATED_DATE))}</>
             ),
-            width: 100
+            width: 100,
+            sorter: (a, b) => getDocumentDateTime(a.CREATED_DATE) - getDocumentDateTime(b.CREATED_DATE),
+            sortOrder: filter.ORDER_BY === 'CREATED_DATE' ? (filter.ORDER_DIRECTION === 'ASC' ? 'ascend' : 'descend') : null,
         },
         {
             title: 'Thư mục',
@@ -211,10 +241,58 @@ export default function Document() {
         },
     ];
 
-    const handleTableChange = async (pagination, filters, sorter) => {
-        // Update pagination state
+    const getSelectedUser = (source = filter) =>
+        users.find((user) => user.USER_ID === source.CREATED_USER_ID);
 
-        await getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: pagination.current, PageSize: pagination.pageSize });
+    const normalizeText = (value) => (value || '').toString().trim().toLowerCase();
+
+    const applyClientSideDocumentFilter = (items = [], source = filter) => {
+        const selectedUser = getSelectedUser(source);
+        const selectedUserEmail = normalizeText(selectedUser?.EMAIL || selectedUser?.USER_NAME || selectedUser?.FULL_NAME);
+        const filteredItems = selectedUserEmail
+            ? items.filter((item) => normalizeText(item.CREATED_USER) === selectedUserEmail)
+            : items;
+
+        return sortDocumentsByCreatedDate(filteredItems, source.ORDER_DIRECTION);
+    };
+
+    const buildActiveFilter = (source = filter) => ({
+        ...(source.NAME?.trim() ? { NAME: source.NAME.trim() } : {}),
+        ...(source.TOPIC_IDS ? { TOPIC_IDS: source.TOPIC_IDS } : {}),
+        ...(source.CREATED_DATE_FROM ? { CREATED_DATE_FROM: source.CREATED_DATE_FROM } : {}),
+        ...(source.CREATED_DATE_TO ? { CREATED_DATE_TO: source.CREATED_DATE_TO } : {}),
+    });
+
+    const hasFilterValue = (source = filter) =>
+        source.NAME?.trim() || source.TOPIC_IDS || source.CREATED_DATE_FROM || source.CREATED_DATE_TO || source.CREATED_USER_ID;
+
+    const handleTableChange = async (pagination, filters, sorter, extra) => {
+        const nextSort = sorter?.field === 'CREATED_DATE'
+            ? {
+                ORDER_BY: 'CREATED_DATE',
+                ORDER_DIRECTION: sorter.order === 'ascend' ? 'ASC' : 'DESC',
+            }
+            : {
+                ORDER_BY: filter.ORDER_BY,
+                ORDER_DIRECTION: filter.ORDER_DIRECTION,
+            };
+        const nextFilter = { ...filter, ...nextSort };
+        setFilter(nextFilter);
+        setPagination((prev) => ({ ...prev, current: pagination.current, pageSize: pagination.pageSize }));
+
+        if (extra?.action === 'sort') {
+            setData((prev) => sortDocumentsByCreatedDate(prev, nextFilter.ORDER_DIRECTION));
+            return;
+        }
+
+        await getData({
+            ...(hasFilterValue(nextFilter) ? {} : { PARENT_DOCUMENT_ID: parentDocumentId }),
+            IDENTITY_KEY: key,
+            CurrentPage: pagination.current,
+            PageSize: pagination.pageSize,
+            filter: buildActiveFilter(nextFilter),
+            clientFilter: nextFilter,
+        });
     };
 
 
@@ -228,22 +306,25 @@ export default function Document() {
     const getData = async (props) => {
         const { PARENT_DOCUMENT_ID, filter } = props
         var queryParams = { Columns: 'CREATED_USER', ...filter, ...props };
+        delete queryParams.filter;
         const response = await getDocumentInfo(queryParams);
 
         if (response.success) {
 
-            if (response.Items && response.Items.length > 0) {
-                response.Items.map((value, index) => {
+            const nextItems = applyClientSideDocumentFilter(response.Items || [], props.clientFilter || filter);
+
+            if (nextItems && nextItems.length > 0) {
+                nextItems.map((value, index) => {
                     value.key = value.DOCUMENT_ID
                     value.Stt = index + 1
                 })
             }
-            setData(response.Items)
+            setData(nextItems)
 
             setPagination({
                 current: response.CurrentPage,
                 pageSize: response.PageSize,  // Number of items per page
-                total: response.TotalCount
+                total: props.clientFilter?.CREATED_USER_ID ? nextItems.length : response.TotalCount
             });
 
             if (PARENT_DOCUMENT_ID !== undefined) {
@@ -300,9 +381,12 @@ export default function Document() {
         getTopicInfo(undefined, false).then(res => {
             if (res.success) setTopics(res.Items || []);
         });
+        getUserInfo({ CurrentPage: 1, PageSize: 10000 }, false).then(res => {
+            if (res.success) setUsers(res.Items || []);
+        });
     }, [parentDocumentId, key]);
 
-    const applyFilter = () => {
+    const legacyApplyFilter = () => {
         const hasActiveFilter = filter.NAME?.trim() || filter.TOPIC_IDS || filter.CREATED_DATE_FROM || filter.CREATED_DATE_TO;
         // Khi có filter thì tìm toàn bộ, không giới hạn theo thư mục hiện tại
         const activeFilter = {
@@ -320,10 +404,37 @@ export default function Document() {
         });
     };
 
-    const resetFilter = () => {
+    const legacyResetFilter = () => {
         const empty = { NAME: '', TOPIC_IDS: '', CREATED_DATE_FROM: null, CREATED_DATE_TO: null };
         setFilter(empty);
-        getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: 1, PageSize: pagination.pageSize });
+        getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: 1, PageSize: pagination.pageSize, filter: buildActiveFilter(filter), clientFilter: filter });
+    };
+
+    const applyFilter = () => {
+        const hasActiveFilter = hasFilterValue(filter);
+        const activeFilter = buildActiveFilter(filter);
+        getData({
+            ...(hasActiveFilter ? {} : { PARENT_DOCUMENT_ID: parentDocumentId }),
+            IDENTITY_KEY: key,
+            CurrentPage: 1,
+            PageSize: pagination.pageSize,
+            filter: activeFilter,
+            clientFilter: filter,
+        });
+    };
+
+    const resetFilter = () => {
+        const empty = {
+            NAME: '',
+            TOPIC_IDS: '',
+            CREATED_DATE_FROM: null,
+            CREATED_DATE_TO: null,
+            CREATED_USER_ID: '',
+            ORDER_BY: 'CREATED_DATE',
+            ORDER_DIRECTION: 'DESC',
+        };
+        setFilter(empty);
+        getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: 1, PageSize: pagination.pageSize, filter: buildActiveFilter(empty), clientFilter: empty });
     };
 
     return (
@@ -359,6 +470,29 @@ export default function Document() {
                         value={filter.TOPIC_IDS || undefined}
                         options={topics.map(t => ({ label: t.NAME, value: t.TOPIC_ID }))}
                         onChange={val => setFilter(f => ({ ...f, TOPIC_IDS: val ?? '' }))}
+                    />
+                    <Select
+                        placeholder="Người đăng..."
+                        showSearch
+                        allowClear
+                        style={{ width: 240 }}
+                        value={filter.CREATED_USER_ID || undefined}
+                        optionFilterProp="label"
+                        options={users.map(u => ({
+                            label: u.EMAIL || u.USER_NAME || u.FULL_NAME || u.USER_ID,
+                            value: u.USER_ID,
+                        }))}
+                        onChange={val => setFilter(f => ({ ...f, CREATED_USER_ID: val ?? '' }))}
+                    />
+                    <Select
+                        placeholder="Sắp xếp ngày đăng"
+                        style={{ width: 190 }}
+                        value={filter.ORDER_DIRECTION}
+                        options={[
+                            { label: 'Mới nhất trước', value: 'DESC' },
+                            { label: 'Cũ nhất trước', value: 'ASC' },
+                        ]}
+                        onChange={val => setFilter(f => ({ ...f, ORDER_BY: 'CREATED_DATE', ORDER_DIRECTION: val }))}
                     />
                     <Button type="primary" shape="round" icon={<SearchOutlined />} onClick={applyFilter}>
                         Tìm kiếm

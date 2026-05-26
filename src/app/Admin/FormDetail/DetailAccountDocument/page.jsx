@@ -135,7 +135,7 @@ const DetailAccountDocument = (props) => {
                         </div>
                         {
                             data.DOCUMENT_IDS?.split(',').filter((x) => x).map((x) =>
-                                <Tag style={{ fontSize: '20px', margin: '5px' }} closeIcon={<CloseCircleOutlined />} onClose={() => {
+                                <Tag key={x} style={{ fontSize: '20px', margin: '5px' }} closeIcon={<CloseCircleOutlined />} onClose={() => {
                                     var documentIds = data.DOCUMENT_IDS?.split(',').filter((z) => z != x)
                                     onChange({ ...data, DOCUMENT_IDS: documentIds.join(',') })
                                     setOptions([])

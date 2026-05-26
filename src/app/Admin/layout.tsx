@@ -1,7 +1,7 @@
 "use client";
 
 import { getUnreadCount } from "@/app/Api/apiRegistration";
-import BackgroundJobCenter from "@/app/Component/BackgroundJobCenter";
+import BackgroundJobCenter from "@/app/component/BackgroundJobCenter";
 import { Inter } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";

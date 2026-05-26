@@ -2,7 +2,7 @@
 import { getClientSideCookie } from "@/app/Api";
 import { getDocumentInfo, postDocumentInfo } from "@/app/Api/apiDocument";
 import { getTopicInfo } from "@/app/Api/apiTopic";
-import { DebounceSelect } from "@/app/Component/DebounceSelect";
+import { DebounceSelect } from "@/app/component/DebounceSelect";
 import { guidEmpty } from "@/app/constans";
 import { finishBackgroundJob, startBackgroundJob, updateBackgroundJob } from "@/app/utils/backgroundJobs";
 import { DeleteOutlined, InboxOutlined, PictureOutlined } from "@ant-design/icons";

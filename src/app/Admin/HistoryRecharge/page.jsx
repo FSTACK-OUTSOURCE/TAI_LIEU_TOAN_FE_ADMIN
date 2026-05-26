@@ -1,6 +1,6 @@
 "use client";
 import { getTransactionInfo } from "@/app/Api/apiTransaction";
-import { Filter } from "@/app/Component/Filter";
+import { Filter } from "@/app/component/Filter";
 import { FormatDateTime, guidEmpty } from "@/app/constans";
 import { Table } from "antd";
 import "bootstrap/dist/css/bootstrap.min.css";
