@@ -18,6 +18,7 @@ import {
     Row,
     Select,
     Upload,
+    message,
     notification,
 } from "antd";
 import axios from "axios";
@@ -40,6 +41,7 @@ const FILE_TYPE_MAP = {
 
 const DOWNLOAD_EXTENSIONS = [".doc", ".docx", ".rar", ".zip", ".xlsx", ".xls", ".ppt", ".pptx"];
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+const PDF_TO_IMAGE_API = "https://api-pdf.fstack.asia/pdf-to-image";
 
 const STATUS_FLAGS = {
     published: { IS_FOLDER: false, IS_PUBLIC: true, IS_PIN: false, IS_HIDDEN: false },
@@ -66,6 +68,8 @@ const getBaseName = (fileName = "") => {
 };
 
 const getRelativePath = (file) => file.webkitRelativePath || file.name;
+
+const getFileKey = (file) => (file ? `${file.name}-${file.size}-${file.lastModified || ""}` : "");
 
 const getFileMeta = (file) => {
     const relativePath = getRelativePath(file);
@@ -122,6 +126,10 @@ const buildRowsFromFiles = (uploadFiles, defaults) => {
             thumbnailFile: null,
             thumbnailPreview: "",
             detailImages: [],
+            pdfImageStatus: "idle",
+            pdfImageError: "",
+            pdfImageFileKey: "",
+            shouldAutoGenerateImages: true,
             usePreview: false,
             useDownload: false,
             fileType: defaults.FILE_TYPE || null,
@@ -293,12 +301,55 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
     };
 
-    const handleReplacePreview = (row, file) => {
+    const handleReplacePreview = async (row, file) => {
         const uploadFile = normalizeUploadFile(file);
+        const isPdf = getExtension(uploadFile.name) === ".pdf";
+        const isReplacingExistingPdf = isPdf && Boolean(row.pdfFile);
+        const fileKey = getFileKey(uploadFile);
+
+        if (isReplacingExistingPdf) {
+            Modal.confirm({
+                title: "Tạo lại ảnh tự động?",
+                content: "Bạn có muốn tạo lại thumbnail và ảnh chi tiết tự động bằng file PDF mới này không?",
+                okText: "Tạo lại ảnh",
+                cancelText: "Chỉ thay file",
+                onOk: () => {
+                    updateRow(row.key, {
+                        pdfFile: uploadFile,
+                        usePreview: true,
+                        name: row.name || getBaseName(uploadFile.name),
+                        thumbnailFile: null,
+                        thumbnailPreview: "",
+                        detailImages: [],
+                        pdfImageStatus: "idle",
+                        pdfImageError: "",
+                        pdfImageFileKey: "",
+                        shouldAutoGenerateImages: true,
+                    });
+                },
+                onCancel: () => {
+                    updateRow(row.key, {
+                        pdfFile: uploadFile,
+                        usePreview: true,
+                        name: row.name || getBaseName(uploadFile.name),
+                        pdfImageStatus: "skipped",
+                        pdfImageError: "",
+                        pdfImageFileKey: fileKey,
+                        shouldAutoGenerateImages: false,
+                    });
+                },
+            });
+            return false;
+        }
+
         updateRow(row.key, {
             pdfFile: uploadFile,
             usePreview: true,
             name: row.name || getBaseName(uploadFile.name),
+            pdfImageStatus: "idle",
+            pdfImageError: "",
+            pdfImageFileKey: "",
+            shouldAutoGenerateImages: isPdf,
         });
         return false;
     };
@@ -374,6 +425,106 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         return paths;
     };
 
+    const base64ToImageFile = (base64, fileName) => {
+        const cleanBase64 = base64.includes(",") ? base64.split(",").pop() : base64;
+        const binary = atob(cleanBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return new File([bytes], fileName, { type: "image/png" });
+    };
+
+    const convertPdfPreviewToImages = async (pdfFile, rowName) => {
+        if (!pdfFile) return [];
+        const response = await fetch(PDF_TO_IMAGE_API, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/octet-stream",
+            },
+            body: pdfFile,
+        });
+
+        if (!response.ok) {
+            throw new Error(`PDF to image failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        return (data.pages || []).map((pageBase64, index) =>
+            base64ToImageFile(pageBase64, `${rowName || "document"}-page-${index + 1}.png`),
+        );
+    };
+
+    const applyGeneratedPdfImagesToRow = (row, generatedImages, fileKey) => {
+        const generatedDetailImages = generatedImages.slice(1).map((file, index) => ({
+            uid: `${fileKey}-generated-${index + 1}`,
+            fileKey: `${file.name}-${file.size}-${file.lastModified || ""}`,
+            file,
+            name: file.name,
+            preview: URL.createObjectURL(file),
+            generatedFromPdf: true,
+        }));
+
+        setRows((prevRows) =>
+            prevRows.map((currentRow) => {
+                if (currentRow.key !== row.key) return currentRow;
+                return {
+                    ...currentRow,
+                    thumbnailFile: currentRow.thumbnailFile || generatedImages[0] || null,
+                    thumbnailPreview: currentRow.thumbnailPreview || (generatedImages[0] ? URL.createObjectURL(generatedImages[0]) : ""),
+                    detailImages: (currentRow.detailImages || []).length ? currentRow.detailImages : generatedDetailImages,
+                    pdfImageStatus: "done",
+                    pdfImageError: "",
+                    pdfImageFileKey: fileKey,
+                };
+            }),
+        );
+    };
+
+    useEffect(() => {
+        rows.forEach((row) => {
+            const fileKey = getFileKey(row.pdfFile);
+            const shouldConvert =
+                row.usePreview &&
+                row.pdfFile &&
+                row.shouldAutoGenerateImages !== false &&
+                getExtension(row.pdfFile.name) === ".pdf" &&
+                row.pdfImageStatus !== "loading" &&
+                row.pdfImageFileKey !== fileKey &&
+                (!row.thumbnailFile || !(row.detailImages || []).length);
+
+            if (!shouldConvert) return;
+
+            setRows((prevRows) =>
+                prevRows.map((currentRow) =>
+                    currentRow.key === row.key
+                        ? { ...currentRow, pdfImageStatus: "loading", pdfImageError: "" }
+                        : currentRow,
+                ),
+            );
+
+            convertPdfPreviewToImages(row.pdfFile, row.name)
+                .then((generatedImages) => {
+                    applyGeneratedPdfImagesToRow(row, generatedImages, fileKey);
+                })
+                .catch((error) => {
+                    console.warn("PDF preview image generation failed:", error);
+                    setRows((prevRows) =>
+                        prevRows.map((currentRow) =>
+                            currentRow.key === row.key
+                                ? {
+                                      ...currentRow,
+                                      pdfImageStatus: "error",
+                                      pdfImageError: "Không thể tự tạo ảnh từ PDF preview.",
+                                      pdfImageFileKey: fileKey,
+                                  }
+                                : currentRow,
+                        ),
+                    );
+                });
+        });
+    }, [rows]);
+
     const callAutomation = async (documentResponse, row, isCreateBlog) => {
         const pdfFile = row.usePreview ? row.pdfFile : null;
         if (!pdfFile) return;
@@ -444,8 +595,21 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                 const formData = new FormData();
                 if (row.useDownload && row.downloadFile) formData.append("FILE", row.downloadFile);
                 if (row.usePreview && row.pdfFile) formData.append("FILE_PDF", row.pdfFile);
-                const thumbnailUrl = row.thumbnailFile ? await uploadThumbnail(row.thumbnailFile) : row.thumbnailUrl || "";
-                const detailImagePaths = await uploadImages(row.detailImages);
+                let generatedPdfImages = [];
+                if (row.usePreview && row.pdfFile && (!row.thumbnailFile || !(row.detailImages || []).length)) {
+                    updateBackgroundJob(jobKey, {
+                        percent: basePercent + 1,
+                        description: `Đang chuyển PDF preview sang ảnh: ${row.name}`,
+                    });
+                    generatedPdfImages = await convertPdfPreviewToImages(row.pdfFile, row.name);
+                }
+
+                const thumbnailFile = row.thumbnailFile || generatedPdfImages[0] || null;
+                const detailImages = (row.detailImages || []).length
+                    ? row.detailImages
+                    : generatedPdfImages.slice(1).map((file) => ({ file }));
+                const thumbnailUrl = thumbnailFile ? await uploadThumbnail(thumbnailFile) : row.thumbnailUrl || "";
+                const detailImagePaths = await uploadImages(detailImages);
 
                 const saveData = {
                     NAME: row.name,
@@ -598,6 +762,16 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                     onUpload: (file) => handleReplacePreview(row, file),
                     buttonText: row.pdfFile ? "Thay file preview" : "Upload file preview",
                     previewFile: row.pdfFile,
+                    children: (
+                        <>
+                            {row.pdfImageStatus === "loading" && (
+                                <div className={styles.bulkPdfImageStatus}>Đang tự tạo thumbnail và ảnh chi tiết từ PDF...</div>
+                            )}
+                            {row.pdfImageStatus === "error" && (
+                                <div className={styles.bulkPdfImageError}>{row.pdfImageError}</div>
+                            )}
+                        </>
+                    ),
                 })}
 
                 {renderFileCard({

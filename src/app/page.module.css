@@ -1086,6 +1086,21 @@
   gap: 8px;
 }
 
+.bulkPdfImageStatus,
+.bulkPdfImageError {
+  margin: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bulkPdfImageStatus {
+  color: #175cd3;
+}
+
+.bulkPdfImageError {
+  color: #b42318;
+}
+
 .bulkItemCollapse {
   display: flex;
   flex-direction: column;
