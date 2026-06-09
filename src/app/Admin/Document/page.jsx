@@ -51,7 +51,10 @@ export default function Document() {
 
     const searchParams = useSearchParams()
 
-    const parentDocumentId = searchParams.get('parentDocumentId') || guidEmpty;
+    const rawParentDocumentId = searchParams.get('parentDocumentId') || '';
+    const parentDocumentParts = rawParentDocumentId.split('?edit=');
+    const parentDocumentId = parentDocumentParts[0] || guidEmpty;
+    const editDocumentId = searchParams.get('edit') || parentDocumentParts[1]?.split('&')[0] || null;
     const key = searchParams.get('IDENTITY_KEY');
     const showDeleteConfirm = (value) => {
         Swal.fire({
@@ -397,6 +400,12 @@ export default function Document() {
             if (res.success) setUsers(res.Items || []);
         });
     }, [parentDocumentId, key]);
+
+    useEffect(() => {
+        if (editDocumentId) {
+            openEditDocument(editDocumentId);
+        }
+    }, [editDocumentId]);
 
     const legacyApplyFilter = () => {
         const hasActiveFilter = filter.NAME?.trim() || filter.TOPIC_IDS || filter.CREATED_DATE_FROM || filter.CREATED_DATE_TO;
