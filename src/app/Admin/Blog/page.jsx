@@ -97,9 +97,12 @@ export default function BlogPage() {
         try {
             const res = await uploadFile(file);
             if (res?.FilePath) {
+                const filePath = res.FilePath.replace(/\\/g, "/");
                 setAutoForm((prev) => ({
                     ...prev,
-                    thumbnail: `${process.env.NEXT_PUBLIC_API_URL}${res.FilePath.replace(/\\/g, "/")}`,
+                    thumbnail: filePath.startsWith('https://')
+                        ? filePath
+                        : `${process.env.NEXT_PUBLIC_API_URL}${filePath}`,
                 }));
             }
         } catch {
@@ -171,9 +174,12 @@ export default function BlogPage() {
         try {
             const res = await uploadFile(file);
             if (res?.FilePath) {
+                const filePath = res.FilePath.replace(/\\/g, "/");
                 setForm((prev) => ({
                     ...prev,
-                    THUMBNAIL: `${process.env.NEXT_PUBLIC_API_URL}${res.FilePath.replace(/\\/g, "/")}`,
+                    THUMBNAIL: filePath.startsWith('https://')
+                        ? filePath
+                        : `${process.env.NEXT_PUBLIC_API_URL}${filePath}`,
                 }));
             }
         } catch {

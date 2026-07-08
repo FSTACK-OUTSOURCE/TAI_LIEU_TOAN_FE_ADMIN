@@ -39,7 +39,9 @@ export default function ManageConfig() {
                         id: x.CONFIG_ID,
                         name: "image.png",
                         status: "done",
-                        url: `${process.env.NEXT_PUBLIC_API_URL}${x.CONFIG_VALUE}`,
+                        url: x.CONFIG_VALUE?.startsWith('https://')
+                            ? x.CONFIG_VALUE
+                            : `${process.env.NEXT_PUBLIC_API_URL}${x.CONFIG_VALUE}`,
                     }),
                 ),
             );
@@ -50,7 +52,9 @@ export default function ManageConfig() {
                         id: x.CONFIG_ID,
                         name: "image.png",
                         status: "done",
-                        url: `${process.env.NEXT_PUBLIC_API_URL}${x.CONFIG_VALUE}`,
+                        url: x.CONFIG_VALUE?.startsWith('https://')
+                            ? x.CONFIG_VALUE
+                            : `${process.env.NEXT_PUBLIC_API_URL}${x.CONFIG_VALUE}`,
                     }),
                 ),
             );
