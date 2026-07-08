@@ -45,6 +45,7 @@ const DetailDocument = (props) => {
     const [existingImages, setExistingImages] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [parentSearchMode, setParentSearchMode] = useState("full");
     const [createBlog, setCreateBlog] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
 
@@ -431,32 +432,52 @@ const DetailDocument = (props) => {
             await deleteFile(file.id);
         }
     };
+    const dedupeDocuments = (...lists) => {
+        const map = new Map();
+        lists.flat().forEach((doc) => {
+            if (doc?.DOCUMENT_ID) map.set(doc.DOCUMENT_ID, doc);
+        });
+        return Array.from(map.values());
+    };
+
     const initOptions = async (props = {}) => {
-        const { search, DOCUMENT_ID, selectedOption } = props;
+        const { search, DOCUMENT_ID, selectedOption, keyOnly } = props;
         const keyword = search?.trim();
-        const queryParams = {
-            ...(keyword
-                ? isNaN(keyword)
-                    ? { NAME: keyword }
-                    : { IDENTITY_KEY: keyword }
-                : {}),
+        const baseParams = {
             Columns: "*",
             IS_FOLDER: true,
             CurrentPage: 1,
             PageSize: 10000,
         };
-        var response = await getDocumentInfo(queryParams, false);
-        const apiOptions = (response.Items || [])
+        let items;
+        if (keyword && keyOnly) {
+            const response = await getDocumentInfo({ ...baseParams, IDENTITY_KEY: keyword }, false);
+            items = response.Items || [];
+        } else if (keyword) {
+            const queries = [getDocumentInfo({ ...baseParams, NAME: keyword }, false)];
+            if (!isNaN(keyword)) {
+                queries.push(getDocumentInfo({ ...baseParams, IDENTITY_KEY: keyword }, false));
+            }
+            const responses = await Promise.all(queries);
+            items = dedupeDocuments(...responses.map((r) => r.Items || []));
+        } else {
+            const response = await getDocumentInfo(baseParams, false);
+            items = response.Items || [];
+        }
+        const apiOptions = items
             .filter((x) => x.DOCUMENT_ID !== DOCUMENT_ID)
             .map(toDocumentOption);
-        setOptions((prev) =>
-            mergeOptions(selectedOption ? [selectedOption] : prev, apiOptions),
-        );
+        setOptions((prev) => {
+            const keepSelected = selectedOption
+                ? [selectedOption]
+                : prev.filter((o) => o.value === data?.PARENT_DOCUMENT_ID);
+            return mergeOptions(keepSelected, apiOptions);
+        });
     };
-    const fetchOptions = async (search) => {
+    const fetchOptions = async (search, keyOnly = false) => {
         setLoading(true);
         try {
-            await initOptions({ search, DOCUMENT_ID: data?.DOCUMENT_ID });
+            await initOptions({ search, DOCUMENT_ID: data?.DOCUMENT_ID, keyOnly });
         } catch (error) {
             console.error("Error fetching options:", error);
         } finally {
@@ -465,7 +486,7 @@ const DetailDocument = (props) => {
     };
     const handleKeyDown = (event) => {
         if (event.key === "Enter") {
-            fetchOptions(searchTerm);
+            fetchOptions(searchTerm, parentSearchMode === "key");
         }
     };
 
@@ -498,7 +519,7 @@ const DetailDocument = (props) => {
                             : "Thêm mới tài liệu"}
                     </p>
                     <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">
-                        <div className="d-flex flex-row align-items-center">
+                        <div className="d-flex flex-row align-items-center" style={{ gap: 8 }}>
                             <div className="form-outline flex-fill mb-0">
                                 <label>Tên tài liệu cha</label>
                                 <Select
@@ -522,7 +543,7 @@ const DetailDocument = (props) => {
                                     }}
                                     onSearch={(value) => {
                                         setSearchTerm(value);
-                                        fetchOptions(value);
+                                        fetchOptions(value, parentSearchMode === "key");
                                     }}
                                     options={(options || []).map((d) => ({
                                         value: d.value,
@@ -531,6 +552,18 @@ const DetailDocument = (props) => {
                                     style={{ width: "100%", height: "40px" }}
                                 ></Select>
                             </div>
+                            <Select
+                                value={parentSearchMode}
+                                style={{ width: 140, marginTop: 22 }}
+                                options={[
+                                    { value: "full", label: "Tìm đầy đủ" },
+                                    { value: "key", label: "Dùng khóa" },
+                                ]}
+                                onChange={(value) => {
+                                    setParentSearchMode(value);
+                                    fetchOptions(searchTerm, value === "key");
+                                }}
+                            />
                         </div>
                     </div>
                     <div className="col-md-12 col-lg-12 col-xl-12 order-2 order-lg-1 mb-4">

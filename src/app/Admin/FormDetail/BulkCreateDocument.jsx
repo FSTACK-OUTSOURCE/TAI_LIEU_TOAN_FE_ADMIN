@@ -173,6 +173,8 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
     const [selectedParentId, setSelectedParentId] = useState(parentDocumentId || guidEmpty);
     const [parentOptions, setParentOptions] = useState([]);
     const [parentLoading, setParentLoading] = useState(false);
+    const [parentSearchTerm, setParentSearchTerm] = useState("");
+    const [parentSearchMode, setParentSearchMode] = useState("full");
     const [defaults, setDefaults] = useState({
         PRICE: null,
         GRADE: "",
@@ -232,28 +234,46 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
         return Array.from(map.values());
     };
 
-    const fetchParentOptions = async (search, selectedOption) => {
+    const dedupeDocuments = (...lists) => {
+        const map = new Map();
+        lists.flat().forEach((doc) => {
+            if (doc?.DOCUMENT_ID) map.set(doc.DOCUMENT_ID, doc);
+        });
+        return Array.from(map.values());
+    };
+
+    const fetchParentOptions = async (search, selectedOption, keyOnly = false) => {
         setParentLoading(true);
         try {
             const keyword = search?.trim();
-            const response = await getDocumentInfo(
-                {
-                    ...(keyword
-                        ? isNaN(keyword)
-                            ? { NAME: keyword }
-                            : { IDENTITY_KEY: keyword }
-                        : {}),
-                    Columns: "*",
-                    IS_FOLDER: true,
-                    CurrentPage: 1,
-                    PageSize: 10000,
-                },
-                false,
-            );
-            const apiOptions = (response.Items || []).map(toParentOption);
-            setParentOptions((prev) =>
-                mergeParentOptions(selectedOption ? [selectedOption] : prev, apiOptions),
-            );
+            const baseParams = {
+                Columns: "*",
+                IS_FOLDER: true,
+                CurrentPage: 1,
+                PageSize: 10000,
+            };
+            let items;
+            if (keyword && keyOnly) {
+                const response = await getDocumentInfo({ ...baseParams, IDENTITY_KEY: keyword }, false);
+                items = response.Items || [];
+            } else if (keyword) {
+                const queries = [getDocumentInfo({ ...baseParams, NAME: keyword }, false)];
+                if (!isNaN(keyword)) {
+                    queries.push(getDocumentInfo({ ...baseParams, IDENTITY_KEY: keyword }, false));
+                }
+                const responses = await Promise.all(queries);
+                items = dedupeDocuments(...responses.map((r) => r.Items || []));
+            } else {
+                const response = await getDocumentInfo(baseParams, false);
+                items = response.Items || [];
+            }
+            const apiOptions = items.map(toParentOption);
+            setParentOptions((prev) => {
+                const keepSelected = selectedOption
+                    ? [selectedOption]
+                    : prev.filter((o) => o.value === selectedParentId);
+                return mergeParentOptions(keepSelected, apiOptions);
+            });
         } finally {
             setParentLoading(false);
         }
@@ -864,18 +884,35 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                 <Row gutter={16}>
                     <Col span={24}>
                         <span className={styles.quickFieldLabel}>Tài liệu cha</span>
-                        <Select
-                            showSearch
-                            allowClear
-                            value={selectedParentId === guidEmpty ? undefined : selectedParentId}
-                            placeholder="Chọn tài liệu cha"
-                            loading={parentLoading}
-                            filterOption={false}
-                            onSearch={fetchParentOptions}
-                            onChange={handleParentChange}
-                            options={parentOptions}
-                            style={{ width: "100%" }}
-                        />
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <Select
+                                showSearch
+                                allowClear
+                                value={selectedParentId === guidEmpty ? undefined : selectedParentId}
+                                placeholder="Chọn tài liệu cha"
+                                loading={parentLoading}
+                                filterOption={false}
+                                onSearch={(value) => {
+                                    setParentSearchTerm(value);
+                                    fetchParentOptions(value, undefined, parentSearchMode === "key");
+                                }}
+                                onChange={handleParentChange}
+                                options={parentOptions}
+                                style={{ width: "100%" }}
+                            />
+                            <Select
+                                value={parentSearchMode}
+                                style={{ width: 140 }}
+                                options={[
+                                    { value: "full", label: "Tìm đầy đủ" },
+                                    { value: "key", label: "Dùng khóa" },
+                                ]}
+                                onChange={(value) => {
+                                    setParentSearchMode(value);
+                                    fetchParentOptions(parentSearchTerm, undefined, value === "key");
+                                }}
+                            />
+                        </div>
                     </Col>
                 </Row>
                 <div style={{ height: 16 }} />
