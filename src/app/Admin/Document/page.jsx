@@ -36,6 +36,7 @@ export default function Document() {
     const [users, setUsers] = useState([]);
     const [filter, setFilter] = useState({
         NAME: '',
+        IDENTITY_KEY: '',
         TOPIC_IDS: '',
         CREATED_DATE_FROM: null,
         CREATED_DATE_TO: null,
@@ -273,13 +274,14 @@ export default function Document() {
 
     const buildActiveFilter = (source = filter) => ({
         ...(source.NAME?.trim() ? { NAME: source.NAME.trim() } : {}),
+        ...(source.IDENTITY_KEY?.trim() ? { IDENTITY_KEY: source.IDENTITY_KEY.trim() } : (key ? { IDENTITY_KEY: key } : {})),
         ...(source.TOPIC_IDS ? { TOPIC_IDS: source.TOPIC_IDS } : {}),
         ...(source.CREATED_DATE_FROM ? { CREATED_DATE_FROM: source.CREATED_DATE_FROM } : {}),
         ...(source.CREATED_DATE_TO ? { CREATED_DATE_TO: source.CREATED_DATE_TO } : {}),
     });
 
     const hasFilterValue = (source = filter) =>
-        source.NAME?.trim() || source.TOPIC_IDS || source.CREATED_DATE_FROM || source.CREATED_DATE_TO || source.CREATED_USER_ID;
+        source.NAME?.trim() || source.IDENTITY_KEY?.trim() || source.TOPIC_IDS || source.CREATED_DATE_FROM || source.CREATED_DATE_TO || source.CREATED_USER_ID;
 
     const handleTableChange = async (pagination, filters, sorter, extra) => {
         const nextSort = sorter?.field === 'CREATED_DATE'
@@ -302,7 +304,6 @@ export default function Document() {
 
         await getData({
             ...(hasFilterValue(nextFilter) ? {} : { PARENT_DOCUMENT_ID: parentDocumentId }),
-            IDENTITY_KEY: key,
             CurrentPage: pagination.current,
             PageSize: pagination.pageSize,
             filter: buildActiveFilter(nextFilter),
@@ -436,7 +437,6 @@ export default function Document() {
         const activeFilter = buildActiveFilter(filter);
         getData({
             ...(hasActiveFilter ? {} : { PARENT_DOCUMENT_ID: parentDocumentId }),
-            IDENTITY_KEY: key,
             CurrentPage: 1,
             PageSize: pagination.pageSize,
             filter: activeFilter,
@@ -447,6 +447,7 @@ export default function Document() {
     const resetFilter = () => {
         const empty = {
             NAME: '',
+            IDENTITY_KEY: '',
             TOPIC_IDS: '',
             CREATED_DATE_FROM: null,
             CREATED_DATE_TO: null,
@@ -455,7 +456,7 @@ export default function Document() {
             ORDER_DIRECTION: 'DESC',
         };
         setFilter(empty);
-        getData({ PARENT_DOCUMENT_ID: parentDocumentId, IDENTITY_KEY: key, CurrentPage: 1, PageSize: pagination.pageSize, filter: buildActiveFilter(empty), clientFilter: empty });
+        getData({ PARENT_DOCUMENT_ID: parentDocumentId, CurrentPage: 1, PageSize: pagination.pageSize, filter: buildActiveFilter(empty), clientFilter: empty });
     };
 
     return (
@@ -469,6 +470,14 @@ export default function Document() {
                         allowClear
                         style={{ width: 240 }}
                         onChange={e => setFilter(f => ({ ...f, NAME: e.target.value }))}
+                        onPressEnter={applyFilter}
+                    />
+                    <Input
+                        placeholder="Tìm khóa..."
+                        value={filter.IDENTITY_KEY}
+                        allowClear
+                        style={{ width: 140 }}
+                        onChange={e => setFilter(f => ({ ...f, IDENTITY_KEY: e.target.value }))}
                         onPressEnter={applyFilter}
                     />
                     <DatePicker.RangePicker
