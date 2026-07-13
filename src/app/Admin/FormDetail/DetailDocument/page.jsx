@@ -131,7 +131,9 @@ const DetailDocument = (props) => {
                 id: data.DOCUMENT_ID,
                 name: "image.png",
                 status: "done",
-                url: `${process.env.NEXT_PUBLIC_API_URL}${image}`,
+                url: image?.startsWith('https://')
+    ? image
+    : `${process.env.NEXT_PUBLIC_API_URL}${image}`,
             },
         ]);
 
@@ -189,7 +191,9 @@ const DetailDocument = (props) => {
                             id: response.Items[0].DOCUMENT_ID,
                             name: "image.png",
                             status: "done",
-                            url: `${process.env.NEXT_PUBLIC_API_URL}${response.Items[0].IMAGE_LINK}`,
+                            url: response.Items[0].IMAGE_LINK?.startsWith('https://')
+    ? response.Items[0].IMAGE_LINK
+    : `${process.env.NEXT_PUBLIC_API_URL}${response.Items[0].IMAGE_LINK}`,
                         },
                     ]);
                 }
@@ -201,7 +205,9 @@ const DetailDocument = (props) => {
                                 uid: `detail-img-${idx}`,
                                 name: `image-${idx}.png`,
                                 status: "done",
-                                url: `${process.env.NEXT_PUBLIC_API_URL}${path}`,
+                               url: path?.startsWith('https://')
+    ? path
+    : `${process.env.NEXT_PUBLIC_API_URL}${path}`,
                                 path,
                             })),
                         );
@@ -385,7 +391,9 @@ const DetailDocument = (props) => {
                         uid: newPath,
                         name: "image.png",
                         status: "done",
-                        url: `${process.env.NEXT_PUBLIC_API_URL}${newPath}`,
+                        url: newPath?.startsWith('https://')
+                            ? newPath
+                            : `${process.env.NEXT_PUBLIC_API_URL}${newPath}`,
                         path: newPath,
                     },
                 ];
@@ -928,7 +936,9 @@ const DetailDocument = (props) => {
                                                 <Image
                                                     key={image.uid}
                                                     width={100}
-                                                    src={`${process.env.NEXT_PUBLIC_API_URL}${image}`}
+                                                    src={image?.startsWith('https://')
+                                                        ? image
+                                                        : `${process.env.NEXT_PUBLIC_API_URL}${image}`}
                                                     preview={false}
                                                     onClick={() =>
                                                         handleSelectImage(image)

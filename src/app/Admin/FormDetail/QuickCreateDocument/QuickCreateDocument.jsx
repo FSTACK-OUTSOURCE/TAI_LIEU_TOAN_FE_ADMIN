@@ -72,7 +72,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             else if (doc.IS_PIN) setStatus("featured");
             else setStatus("published");
             if (doc.IMAGE_LINK) {
-                setFileImage([{ uid: doc.DOCUMENT_ID, name: "image.png", status: "done", url: `${process.env.NEXT_PUBLIC_API_URL}${doc.IMAGE_LINK}` }]);
+                setFileImage([{ uid: doc.DOCUMENT_ID, name: "image.png", status: "done", url: doc.IMAGE_LINK?.startsWith('https://') ? doc.IMAGE_LINK : `${process.env.NEXT_PUBLIC_API_URL}${doc.IMAGE_LINK}` }]);
             }
             if (doc.FILE_KEY) {
                 setFileDoc([{ uid: doc.FILE_KEY, id: doc.FILE_KEY, name: `${doc.NAME}${doc.FILE_EXTENSION || ""}`, status: "done" }]);
@@ -175,7 +175,9 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
             uid: "selected",
             name: "image.png",
             status: "done",
-            url: `${process.env.NEXT_PUBLIC_API_URL}${image}`,
+            url: image?.startsWith('https://')
+                ? image
+                : `${process.env.NEXT_PUBLIC_API_URL}${image}`,
         }]);
         setData((prev) => ({ ...prev, IMAGE_LINK: image }));
         setIsImageModalVisible(false);
@@ -478,7 +480,7 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         <Modal title="Ảnh đang có" open={isImageModalVisible} footer={null} onCancel={() => setIsImageModalVisible(false)}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {existingImages.map((image) => (
-                    <Image key={image} width={100} src={`${process.env.NEXT_PUBLIC_API_URL}${image}`} preview={false}
+                    <Image key={image} width={100} src={image?.startsWith('https://') ? image : `${process.env.NEXT_PUBLIC_API_URL}${image}`} preview={false}
                         onClick={() => handleSelectImage(image)}
                         style={{ cursor: "pointer", border: data.IMAGE_LINK === image ? "2px solid #1890ff" : "1px solid #d9d9d9" }}
                     />
