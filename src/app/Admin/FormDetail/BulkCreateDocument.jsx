@@ -162,6 +162,42 @@ const buildRowsFromFiles = (uploadFiles, defaults) => {
     }));
 };
 
+// Dragger's fileList is cumulative, so buildRowsFromFiles recomputes every row (old + new)
+// from scratch on every drop. Merge its output back onto the previous rows so already
+// generated thumbnails/detail images/edits on existing rows survive, and only rows whose
+// PDF actually changed (or brand-new rows) get regenerated.
+const mergeRowsWithPrevious = (newRows, prevRows) => {
+    const prevByKey = new Map(prevRows.map((row) => [row.key, row]));
+    return newRows.map((newRow) => {
+        const prevRow = prevByKey.get(newRow.key);
+        if (!prevRow) return newRow;
+
+        const pdfUnchanged = getFileKey(prevRow.pdfFile) === getFileKey(newRow.pdfFile);
+        const thumbnailFile = pdfUnchanged
+            ? prevRow.thumbnailFile
+            : newRow.thumbnailFile || prevRow.thumbnailFile;
+        const thumbnailChanged = thumbnailFile !== prevRow.thumbnailFile;
+
+        return {
+            ...prevRow,
+            name: newRow.name,
+            folderPath: newRow.folderPath,
+            pdfFile: newRow.pdfFile,
+            downloadFile: newRow.downloadFile,
+            usePreview: prevRow.usePreview || newRow.usePreview,
+            useDownload: prevRow.useDownload || newRow.useDownload,
+            fileType: prevRow.fileType || newRow.fileType,
+            status: newRow.status,
+            thumbnailFile,
+            thumbnailPreview: thumbnailChanged ? newRow.thumbnailPreview : prevRow.thumbnailPreview,
+            detailImages: pdfUnchanged ? prevRow.detailImages : [],
+            pdfImageStatus: pdfUnchanged ? prevRow.pdfImageStatus : "idle",
+            pdfImageError: pdfUnchanged ? prevRow.pdfImageError : "",
+            pdfImageFileKey: pdfUnchanged ? prevRow.pdfImageFileKey : "",
+        };
+    });
+};
+
 const toSingleUploadFile = (file) => ({
     uid: `${file.name}-${file.lastModified || Date.now()}`,
     name: file.name,
@@ -1006,7 +1042,9 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                         beforeUpload={() => false}
                         showUploadList={false}
                         accept=".pdf,.doc,.docx,.rar,.zip,.xlsx,.xls,.ppt,.pptx,.jpg,.jpeg,.png,.webp"
-                        onChange={({ fileList }) => setRows(buildRowsFromFiles(fileList, defaults))}
+                        onChange={({ fileList }) =>
+                            setRows((prevRows) => mergeRowsWithPrevious(buildRowsFromFiles(fileList, defaults), prevRows))
+                        }
                     >
                         <p className="ant-upload-drag-icon">
                             <InboxOutlined />
