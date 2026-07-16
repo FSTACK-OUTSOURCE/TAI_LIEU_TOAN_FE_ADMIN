@@ -1,7 +1,8 @@
 "use client";
 import { getClientSideCookie } from "@/app/Api";
 import { getDocumentInfo, postDocumentInfo } from "@/app/Api/apiDocument";
-import { N8N_UPLOAD_SIZE_THRESHOLD, uploadToN8nWebhook } from "@/app/Api/apiN8nUpload";
+import { LARGE_FILE_UPLOAD_THRESHOLD, uploadFileMultipart } from "@/app/Api/apiMultipartUpload";
+import { uploadToN8nWebhook } from "@/app/Api/apiN8nUpload";
 import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/component/DebounceSelect";
 import { guidEmpty } from "@/app/constans";
@@ -645,11 +646,11 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                 const totalSize =
                     (row.useDownload && row.downloadFile ? row.downloadFile.size : 0) +
                     (row.usePreview && row.pdfFile ? row.pdfFile.size : 0);
-                const useN8nUpload = totalSize > N8N_UPLOAD_SIZE_THRESHOLD;
+                const useDirectUpload = totalSize > LARGE_FILE_UPLOAD_THRESHOLD;
 
                 if (row.useDownload && row.downloadFile) {
-                    if (useN8nUpload) {
-                        const uploaded = await uploadToN8nWebhook(row.downloadFile);
+                    if (useDirectUpload) {
+                        const uploaded = await uploadFileMultipart(row.downloadFile);
                         formData.append("FILE_KEY", uploaded.key);
                         formData.append("FILE_EXTENSION", uploaded.extension);
                         formData.append("FILE_SIZE", uploaded.size);
@@ -658,8 +659,8 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                     }
                 }
                 if (row.usePreview && row.pdfFile) {
-                    if (useN8nUpload) {
-                        const uploaded = await uploadToN8nWebhook(row.pdfFile);
+                    if (useDirectUpload) {
+                        const uploaded = await uploadFileMultipart(row.pdfFile);
                         formData.append("PDF_KEY", uploaded.key);
                         formData.append("PDF_EXTENSION", uploaded.extension);
                     } else {

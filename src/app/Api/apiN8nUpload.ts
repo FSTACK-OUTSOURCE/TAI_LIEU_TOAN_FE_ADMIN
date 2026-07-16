@@ -1,5 +1,3 @@
-export const N8N_UPLOAD_SIZE_THRESHOLD = 60 * 1024 * 1024;
-
 export interface N8nUploadResult {
   key: string;
   url: string;

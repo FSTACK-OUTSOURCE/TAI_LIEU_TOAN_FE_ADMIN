@@ -2,7 +2,8 @@
 import { getClientSideCookie } from "@/app/Api";
 import { getDocumentInfo, postDocumentInfo } from "@/app/Api/apiDocument";
 import { getFiles } from "@/app/Api/apiFile";
-import { N8N_UPLOAD_SIZE_THRESHOLD, uploadToN8nWebhook } from "@/app/Api/apiN8nUpload";
+import { LARGE_FILE_UPLOAD_THRESHOLD, uploadFileMultipart } from "@/app/Api/apiMultipartUpload";
+import { uploadToN8nWebhook } from "@/app/Api/apiN8nUpload";
 import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/component/DebounceSelect";
 import { ReactQuill } from "@/app/component/TextEditor";
@@ -183,15 +184,15 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
         });
         const formData = new FormData();
         const totalSize = (file?.size || 0) + (fileUploadPdf?.size || 0);
-        const useN8nUpload = totalSize > N8N_UPLOAD_SIZE_THRESHOLD;
+        const useDirectUpload = totalSize > LARGE_FILE_UPLOAD_THRESHOLD;
 
         const flags = STATUS_FLAGS[status];
         const saveData = { ...data, DESCRIPTION: quill, ...flags };
 
         try {
             if (file) {
-                if (useN8nUpload) {
-                    const uploaded = await uploadToN8nWebhook(file);
+                if (useDirectUpload) {
+                    const uploaded = await uploadFileMultipart(file);
                     delete saveData.FILE_KEY;
                     delete saveData.FILE_EXTENSION;
                     delete saveData.FILE_SIZE;
@@ -203,8 +204,8 @@ const QuickCreateDocument = ({ onClose, parentDocumentId, documentId }) => {
                 }
             }
             if (fileUploadPdf) {
-                if (useN8nUpload) {
-                    const uploaded = await uploadToN8nWebhook(fileUploadPdf);
+                if (useDirectUpload) {
+                    const uploaded = await uploadFileMultipart(fileUploadPdf);
                     delete saveData.PDF_KEY;
                     delete saveData.PDF_EXTENSION;
                     formData.append("PDF_KEY", uploaded.key);
