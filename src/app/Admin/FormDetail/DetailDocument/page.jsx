@@ -6,6 +6,7 @@ import {
     postDocumentInfo,
 } from "@/app/Api/apiDocument";
 import { deleteFile, getFiles } from "@/app/Api/apiFile";
+import { N8N_UPLOAD_SIZE_THRESHOLD, uploadToN8nWebhook } from "@/app/Api/apiN8nUpload";
 import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/component/DebounceSelect";
 import { ReactQuill } from "@/app/component/TextEditor";
@@ -22,7 +23,6 @@ import {
     Spin,
     Upload,
 } from "antd";
-import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { saveAs } from "file-saver";
 import { useEffect, useState } from "react";
@@ -286,13 +286,41 @@ const DetailDocument = (props) => {
 
     const onSave = async () => {
         const formData = new FormData();
-        if (file) {
-            formData.append("FILE", file);
-        }
-        if (fileUploadPdf) {
-            formData.append("FILE_PDF", fileUploadPdf);
-        }
+        const totalSize = (file?.size || 0) + (fileUploadPdf?.size || 0);
+        const useN8nUpload = totalSize > N8N_UPLOAD_SIZE_THRESHOLD;
+
         var saveData = { ...data, DESCRIPTION: quill };
+
+        try {
+            if (file) {
+                if (useN8nUpload) {
+                    const uploaded = await uploadToN8nWebhook(file);
+                    delete saveData.FILE_KEY;
+                    delete saveData.FILE_EXTENSION;
+                    delete saveData.FILE_SIZE;
+                    formData.append("FILE_KEY", uploaded.key);
+                    formData.append("FILE_EXTENSION", uploaded.extension);
+                    formData.append("FILE_SIZE", uploaded.size);
+                } else {
+                    formData.append("FILE", file);
+                }
+            }
+            if (fileUploadPdf) {
+                if (useN8nUpload) {
+                    const uploaded = await uploadToN8nWebhook(fileUploadPdf);
+                    delete saveData.PDF_KEY;
+                    delete saveData.PDF_EXTENSION;
+                    formData.append("PDF_KEY", uploaded.key);
+                    formData.append("PDF_EXTENSION", uploaded.extension);
+                } else {
+                    formData.append("FILE_PDF", fileUploadPdf);
+                }
+            }
+        } catch (err) {
+            Swal.fire("Lỗi", "Upload tài liệu lên hệ thống thất bại, vui lòng thử lại", "error");
+            return;
+        }
+
         Object.keys(saveData).forEach((key) => {
             if (saveData[key] != null) {
                 formData.append(key, saveData[key]);
@@ -352,38 +380,19 @@ const DetailDocument = (props) => {
         </button>
     );
     const uploadFile = async ({ file, onSuccess, onError }) => {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/file/upload`,
-            formData,
-            {
-                headers: {
-                    Authorization: `Bearer ${getClientSideCookie("token")}`,
-                    "Content-Type": "multipart/form-data",
-                },
-            },
-        );
-        onSuccess(response.data);
+        try {
+            const uploaded = await uploadToN8nWebhook(file);
+            onSuccess({ FilePath: uploaded.url });
+        } catch (err) {
+            onError(err);
+        }
     };
 
     const uploadDetailImage = async ({ file, onSuccess, onError }) => {
-        const formData = new FormData();
-        formData.append("file", file);
         try {
-            const response = await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/file/upload`,
-                formData,
-                {
-                    headers: {
-                        Authorization: `Bearer ${getClientSideCookie("token")}`,
-                        "Content-Type": "multipart/form-data",
-                    },
-                },
-            );
-            onSuccess(response.data);
-            const newPath = response.data.FilePath;
+            const uploaded = await uploadToN8nWebhook(file);
+            onSuccess({ FilePath: uploaded.url });
+            const newPath = uploaded.url;
             setFileImages((prev) => {
                 const newList = [
                     ...prev,

@@ -1,6 +1,7 @@
 "use client";
 import { getClientSideCookie } from "@/app/Api";
 import { getDocumentInfo, postDocumentInfo } from "@/app/Api/apiDocument";
+import { N8N_UPLOAD_SIZE_THRESHOLD, uploadToN8nWebhook } from "@/app/Api/apiN8nUpload";
 import { getTopicInfo } from "@/app/Api/apiTopic";
 import { DebounceSelect } from "@/app/component/DebounceSelect";
 import { guidEmpty } from "@/app/constans";
@@ -21,7 +22,6 @@ import {
     message,
     notification,
 } from "antd";
-import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
 import styles from "../../page.module.css";
 
@@ -461,15 +461,8 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
 
     const uploadThumbnail = async (file) => {
         if (!file) return "";
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/file/upload`, formData, {
-            headers: {
-                Authorization: `Bearer ${getClientSideCookie("token")}`,
-                "Content-Type": "multipart/form-data",
-            },
-        });
-        return response.data?.FilePath || "";
+        const uploaded = await uploadToN8nWebhook(file);
+        return uploaded.url || "";
     };
 
     const uploadImages = async (images = []) => {
@@ -649,8 +642,30 @@ const BulkCreateDocument = ({ onClose, parentDocumentId }) => {
                 });
 
                 const formData = new FormData();
-                if (row.useDownload && row.downloadFile) formData.append("FILE", row.downloadFile);
-                if (row.usePreview && row.pdfFile) formData.append("FILE_PDF", row.pdfFile);
+                const totalSize =
+                    (row.useDownload && row.downloadFile ? row.downloadFile.size : 0) +
+                    (row.usePreview && row.pdfFile ? row.pdfFile.size : 0);
+                const useN8nUpload = totalSize > N8N_UPLOAD_SIZE_THRESHOLD;
+
+                if (row.useDownload && row.downloadFile) {
+                    if (useN8nUpload) {
+                        const uploaded = await uploadToN8nWebhook(row.downloadFile);
+                        formData.append("FILE_KEY", uploaded.key);
+                        formData.append("FILE_EXTENSION", uploaded.extension);
+                        formData.append("FILE_SIZE", uploaded.size);
+                    } else {
+                        formData.append("FILE", row.downloadFile);
+                    }
+                }
+                if (row.usePreview && row.pdfFile) {
+                    if (useN8nUpload) {
+                        const uploaded = await uploadToN8nWebhook(row.pdfFile);
+                        formData.append("PDF_KEY", uploaded.key);
+                        formData.append("PDF_EXTENSION", uploaded.extension);
+                    } else {
+                        formData.append("FILE_PDF", row.pdfFile);
+                    }
+                }
                 let generatedPdfImages = [];
                 if (row.usePreview && row.pdfFile && (!row.thumbnailFile || !(row.detailImages || []).length)) {
                     updateBackgroundJob(jobKey, {
