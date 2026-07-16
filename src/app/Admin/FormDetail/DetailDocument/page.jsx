@@ -35,6 +35,7 @@ const DetailDocument = (props) => {
     const { onClose, documentId, parentDocumentId } = props;
     const [options, setOptions] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [data, setData] = useState({});
     const [quill, setQuilll] = useState("");
     const [file, setFile] = useState(null);
@@ -286,92 +287,98 @@ const DetailDocument = (props) => {
     };
 
     const onSave = async () => {
-        const formData = new FormData();
-        const totalSize = (file?.size || 0) + (fileUploadPdf?.size || 0);
-        const useDirectUpload = totalSize > LARGE_FILE_UPLOAD_THRESHOLD;
-
-        var saveData = { ...data, DESCRIPTION: quill };
-
+        if (isSaving) return;
+        setIsSaving(true);
         try {
-            if (file) {
-                if (useDirectUpload) {
-                    const uploaded = await uploadFileMultipart(file);
-                    delete saveData.FILE_KEY;
-                    delete saveData.FILE_EXTENSION;
-                    delete saveData.FILE_SIZE;
-                    formData.append("FILE_KEY", uploaded.key);
-                    formData.append("FILE_EXTENSION", uploaded.extension);
-                    formData.append("FILE_SIZE", uploaded.size);
-                } else {
-                    formData.append("FILE", file);
-                }
-            }
-            if (fileUploadPdf) {
-                if (useDirectUpload) {
-                    const uploaded = await uploadFileMultipart(fileUploadPdf);
-                    delete saveData.PDF_KEY;
-                    delete saveData.PDF_EXTENSION;
-                    formData.append("PDF_KEY", uploaded.key);
-                    formData.append("PDF_EXTENSION", uploaded.extension);
-                } else {
-                    formData.append("FILE_PDF", fileUploadPdf);
-                }
-            }
-        } catch (err) {
-            Swal.fire("Lỗi", "Upload tài liệu lên hệ thống thất bại, vui lòng thử lại", "error");
-            return;
-        }
+            const formData = new FormData();
+            const totalSize = (file?.size || 0) + (fileUploadPdf?.size || 0);
+            const useDirectUpload = totalSize > LARGE_FILE_UPLOAD_THRESHOLD;
 
-        Object.keys(saveData).forEach((key) => {
-            if (saveData[key] != null) {
-                formData.append(key, saveData[key]);
-            }
-        });
-        if (
-            !saveData.PARENT_DOCUMENT_ID &&
-            parentDocumentId != guidEmpty &&
-            parentDocumentId != null
-        ) {
-            formData.append("PARENT_DOCUMENT_ID", parentDocumentId);
-        }
+            var saveData = { ...data, DESCRIPTION: quill };
 
-        const response = await postDocumentInfo(formData);
-        if (response.success) {
-            if (createBlog) {
-                if (!data.LINK_FULL?.trim()) {
-                    Swal.fire("Lỗi", "Vui lòng nhập Link trọn bộ để tạo blog", "warning");
-                    return;
-                }
-                if (!data.IMAGE_LINK?.trim()) {
-                    Swal.fire("Lỗi", "Vui lòng upload Ảnh để tạo blog", "warning");
-                    return;
-                }
-                try {
-                    Swal.fire({ title: "Đang tạo blog...", allowOutsideClick: false });
-                    Swal.showLoading();
-                    const thumbnailUrl = data.IMAGE_LINK.startsWith("http")
-                        ? data.IMAGE_LINK
-                        : `${process.env.NEXT_PUBLIC_API_URL}${data.IMAGE_LINK}`;
-                    const n8nResponse = await fetch(process.env.NEXT_PUBLIC_N8N_API, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            driver_url: data.LINK_FULL,
-                            thumbnail_url: thumbnailUrl,
-                            user_id: getUserIdFromToken(),
-                            document_url:`https://tailieutoan.vn/${response.NAME_SLUG}`,
-                        }),
-                    });
-                    if (n8nResponse.ok) {
-                        Swal.fire("Thành công", "Đã lưu tài liệu và tạo bài viết blog thành công", "success");
+            try {
+                if (file) {
+                    if (useDirectUpload) {
+                        const uploaded = await uploadFileMultipart(file);
+                        delete saveData.FILE_KEY;
+                        delete saveData.FILE_EXTENSION;
+                        delete saveData.FILE_SIZE;
+                        formData.append("FILE_KEY", uploaded.key);
+                        formData.append("FILE_EXTENSION", uploaded.extension);
+                        formData.append("FILE_SIZE", uploaded.size);
                     } else {
-                        Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng tạo blog tự động thất bại", "warning");
+                        formData.append("FILE", file);
                     }
-                } catch {
-                    Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng không thể kết nối đến webhook blog", "warning");
                 }
+                if (fileUploadPdf) {
+                    if (useDirectUpload) {
+                        const uploaded = await uploadFileMultipart(fileUploadPdf);
+                        delete saveData.PDF_KEY;
+                        delete saveData.PDF_EXTENSION;
+                        formData.append("PDF_KEY", uploaded.key);
+                        formData.append("PDF_EXTENSION", uploaded.extension);
+                    } else {
+                        formData.append("FILE_PDF", fileUploadPdf);
+                    }
+                }
+            } catch (err) {
+                Swal.fire("Lỗi", "Upload tài liệu lên hệ thống thất bại, vui lòng thử lại", "error");
+                return;
             }
-            onClose();
+
+            Object.keys(saveData).forEach((key) => {
+                if (saveData[key] != null) {
+                    formData.append(key, saveData[key]);
+                }
+            });
+            if (
+                !saveData.PARENT_DOCUMENT_ID &&
+                parentDocumentId != guidEmpty &&
+                parentDocumentId != null
+            ) {
+                formData.append("PARENT_DOCUMENT_ID", parentDocumentId);
+            }
+
+            const response = await postDocumentInfo(formData);
+            if (response.success) {
+                if (createBlog) {
+                    if (!data.LINK_FULL?.trim()) {
+                        Swal.fire("Lỗi", "Vui lòng nhập Link trọn bộ để tạo blog", "warning");
+                        return;
+                    }
+                    if (!data.IMAGE_LINK?.trim()) {
+                        Swal.fire("Lỗi", "Vui lòng upload Ảnh để tạo blog", "warning");
+                        return;
+                    }
+                    try {
+                        Swal.fire({ title: "Đang tạo blog...", allowOutsideClick: false });
+                        Swal.showLoading();
+                        const thumbnailUrl = data.IMAGE_LINK.startsWith("http")
+                            ? data.IMAGE_LINK
+                            : `${process.env.NEXT_PUBLIC_API_URL}${data.IMAGE_LINK}`;
+                        const n8nResponse = await fetch(process.env.NEXT_PUBLIC_N8N_API, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                driver_url: data.LINK_FULL,
+                                thumbnail_url: thumbnailUrl,
+                                user_id: getUserIdFromToken(),
+                                document_url:`https://tailieutoan.vn/${response.NAME_SLUG}`,
+                            }),
+                        });
+                        if (n8nResponse.ok) {
+                            Swal.fire("Thành công", "Đã lưu tài liệu và tạo bài viết blog thành công", "success");
+                        } else {
+                            Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng tạo blog tự động thất bại", "warning");
+                        }
+                    } catch {
+                        Swal.fire("Cảnh báo", "Đã lưu tài liệu nhưng không thể kết nối đến webhook blog", "warning");
+                    }
+                }
+                onClose();
+            }
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -513,7 +520,9 @@ const DetailDocument = (props) => {
         <Modal
             open={true}
             title={data?.DOCUMENT_ID ? "Cập nhật tài liệu" : "Thêm mới tài liệu"}
-            onCancel={onClose}
+            onCancel={isSaving ? undefined : onClose}
+            closable={!isSaving}
+            maskClosable={!isSaving}
             width={1120}
             centered
             className={styles.documentDetailModal}
@@ -521,10 +530,10 @@ const DetailDocument = (props) => {
                 body: { maxHeight: "calc(100vh - 190px)", overflowY: "auto" },
             }}
             footer={[
-                <Button key="close" onClick={onClose}>
+                <Button key="close" onClick={onClose} disabled={isSaving}>
                     Đóng
                 </Button>,
-                <Button key="save" type="primary" onClick={onSave}>
+                <Button key="save" type="primary" onClick={onSave} loading={isSaving} disabled={isSaving}>
                     Lưu
                 </Button>,
             ]}
